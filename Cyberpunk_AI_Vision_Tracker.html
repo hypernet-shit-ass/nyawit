@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyberpunk AI Vision & Gesture Synthesizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MediaPipe CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #030712;
+            font-family: 'Chakra Petch', 'Segoe UI', monospace, sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #webcam {
+            transform: scaleX(-1);
+            display: none;
+        }
+
+        #output_canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+
+        /* Cyberpunk Neon Effects */
+        .glass-panel {
+            background: rgba(8, 15, 30, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.15), inset 0 0 15px rgba(6, 182, 212, 0.05);
+        }
+
+        .cyber-border {
+            position: relative;
+        }
+
+        .cyber-border::before {
+            content: '';
+            position: absolute;
+            top: -1px; left: -1px; width: 10px; height: 10px;
+            border-top: 2px solid #06b6d4;
+            border-left: 2px solid #06b6d4;
+        }
+
+        .cyber-border::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; right: -1px; width: 10px; height: 10px;
+            border-bottom: 2px solid #d946ef;
+            border-right: 2px solid #d946ef;
+        }
+
+        .glow-cyan { text-shadow: 0 0 10px rgba(6, 182, 212, 0.8); }
+        .glow-fuchsia { text-shadow: 0 0 10px rgba(217, 70, 239, 0.8); }
+        .glow-amber { text-shadow: 0 0 10px rgba(245, 158, 11, 0.8); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(6, 182, 212, 0.4);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="text-slate-100 font-mono select-none">
+
+    <!-- Video Element (Hidden) and Main Processing Canvas -->
+    <video id="webcam" playsinline></video>
+    <canvas id="output_canvas"></canvas>
+
+    <!-- TOP HEADER / STATUS HUD -->
+    <div class="fixed top-3 left-3 right-3 pointer-events-none flex justify-between items-start z-20">
+        <div class="glass-panel cyber-border rounded-xl p-3 pointer-events-auto max-w-sm">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
+                <h1 class="text-base font-black tracking-wider bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-amber-300 bg-clip-text text-transparent">
+                    CYBER-VISION v2.6 AI HUD
+                </h1>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-0.5">FACE MICRO-EXPRESSION & HAND LIGHT-PATTERN SYNTHESIZER</p>
+            
+            <div id="statusIndicator" class="mt-2 text-[11px] font-semibold text-amber-400 flex items-center gap-1.5">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                SYSTEM INIT: Loading Neural Weights...
+            </div>
+        </div>
+
+        <!-- TOP RIGHT HUD CONTROLS -->
+        <div class="pointer-events-auto flex flex-col items-end gap-2">
+            <div class="glass-panel cyber-border px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-3">
+                <span class="text-slate-400">FPS: <span id="fpsCounter" class="text-cyan-400">00</span></span>
+                <span class="text-slate-600">|</span>
+                <span class="text-slate-400">LATENCY: <span id="latencyCounter" class="text-emerald-400">0ms</span></span>
+            </div>
+
+            <div class="flex gap-2">
+                <button id="toggleAudioBtn" class="glass-panel hover:bg-cyan-950/60 text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+                    <span id="audioIcon">🔊</span> AUDIO: <span id="audioText" class="text-cyan-400">ON</span>
+                </button>
+                <button id="clearTracesBtn" class="glass-panel hover:bg-fuchsia-950/60 text-fuchsia-300 border border-fuchsia-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                    ✨ CLEAR TRAILS
+                </button>
+                <button id="snapBtn" class="glass-panel hover:bg-amber-950/60 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                    📸 SNAP
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN REAL-TIME METRICS DASHBOARD (LEFT SIDEBAR) -->
+    <div class="fixed top-28 left-3 z-20 pointer-events-auto max-w-[280px] w-full hidden md:block">
+        <div class="glass-panel cyber-border rounded-xl p-3 flex flex-col gap-3">
+            <div class="border-b border-slate-700/60 pb-1.5 flex justify-between items-center">
+                <span class="text-xs font-bold text-cyan-400 glow-cyan">👁️ FACE EXPRESSIONS</span>
+                <span id="faceDetectedBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">NO FACE</span>
+            </div>
+
+            <!-- Blink Counter & EAR -->
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">TOTAL BLINKS</div>
+                    <div id="blinkCount" class="text-xl font-extrabold text-amber-400 glow-amber">0</div>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">EYE STATE</div>
+                    <div id="eyeStateText" class="text-sm font-bold text-cyan-300 mt-1">OPEN</div>
+                </div>
+            </div>
+
+            <!-- EAR Meter -->
+            <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <span>EAR (Eye Aspect Ratio)</span>
+                    <span id="earVal" class="text-cyan-400">0.00</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div id="earBar" class="bg-cyan-400 h-full w-0 transition-all duration-75"></div>
+                </div>
+            </div>
+
+            <!-- Mouth Aspect Ratio MAR & Smile -->
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">MOUTH STATUS</div>
+                    <div id="mouthStateText" class="text-xs font-bold text-fuchsia-400 mt-1">CLOSED</div>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">EXPRESSION</div>
+                    <div id="expressionText" class="text-xs font-bold text-emerald-400 mt-1">NEUTRAL</div>
+                </div>
+            </div>
+
+            <!-- MAR Meter -->
+            <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <span>MAR (Mouth Ratio)</span>
+                    <span id="marVal" class="text-fuchsia-400">0.00</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div id="marBar" class="bg-fuchsia-500 h-full w-0 transition-all duration-75"></div>
+                </div>
+            </div>
+
+            <!-- Head Pose Angles -->
+            <div class="border-t border-slate-700/60 pt-2">
+                <div class="text-[10px] text-slate-400 mb-1">HEAD POSE (Pitch / Yaw / Roll)</div>
+                <div class="grid grid-cols-3 gap-1 text-[11px] font-bold text-center">
+                    <div class="bg-slate-900/80 p-1 rounded border border-slate-800"><span class="text-slate-500">P:</span> <span id="pitchVal" class="text-cyan-300">0°</span></div>
+                    <div class="bg-slate-900/80 p-1 rounded border border-slate-800"><span class="text-slate-500">Y:</span> <span id="yawVal" class="text-cyan-300">0°</span></div>
+                    <div class="bg-slate-900/80 p-1 rounded border border-slate-800"><span class="text-slate-500">R:</span> <span id="rollVal" class="text-cyan-300">0°</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HAND & GESTURE DASHBOARD (RIGHT SIDEBAR) -->
+    <div class="fixed top-28 right-3 z-20 pointer-events-auto max-w-[280px] w-full hidden md:block">
+        <div class="glass-panel cyber-border rounded-xl p-3 flex flex-col gap-3">
+            <div class="border-b border-slate-700/60 pb-1.5 flex justify-between items-center">
+                <span class="text-xs font-bold text-fuchsia-400 glow-fuchsia">🖐️ HAND GESTURES</span>
+                <span id="handsCountBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">0 HANDS</span>
+            </div>
+
+            <!-- Finger Count Display -->
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">LEFT FINGERS</div>
+                    <div id="leftFingersVal" class="text-xl font-black text-cyan-400">0</div>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <div class="text-[10px] text-slate-400">RIGHT FINGERS</div>
+                    <div id="rightFingersVal" class="text-xl font-black text-fuchsia-400">0</div>
+                </div>
+            </div>
+
+            <!-- Active Gesture Recognized -->
+            <div class="bg-slate-900/80 p-2.5 rounded-lg border border-fuchsia-500/30">
+                <div class="text-[10px] text-slate-400">ACTIVE GESTURE PATTERN</div>
+                <div id="activeGestureText" class="text-sm font-extrabold text-amber-300 glow-amber mt-0.5">NONE DETECTED</div>
+            </div>
+
+            <!-- Mid-Air Tracer Mode Status -->
+            <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800 text-xs">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-[10px] text-slate-400">MID-AIR SPATIAL TRACER</span>
+                    <span id="tracerStatusBadge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">READY</span>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-tight">
+                    Raise <span class="text-cyan-300 font-bold">Pointing Finger (☝️)</span> or <span class="text-fuchsia-300 font-bold">Pinch / OK (👌)</span> to draw glowing light patterns in space!
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM MOBILE & QUICK INFO OVERLAY -->
+    <div class="fixed bottom-3 left-1/2 -translate-x-1/2 z-20 w-[95%] max-w-xl pointer-events-auto">
+        <div class="glass-panel cyber-border rounded-xl p-2.5 flex items-center justify-between text-xs gap-2">
+            <div class="flex items-center gap-2 overflow-hidden">
+                <span class="text-cyan-400 text-base">⚡</span>
+                <div class="truncate text-[11px] text-slate-300">
+                    <span id="quickMobileStats" class="font-bold text-amber-300">Blinks: 0 | Mouth: Closed | Fingers: 0</span>
+                </div>
+            </div>
+            <div class="text-[10px] text-slate-400 font-mono shrink-0">
+                AI Vision Mesh v2
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SYSTEM CONSTANTS & GLOBALS ---
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusIndicator = document.getElementById('statusIndicator');
+
+        // DOM helpers: hanya tulis ke DOM jika nilainya berubah (hemat performa)
+        const domCache = {};
+        const el = id => domCache[id] || (domCache[id] = document.getElementById(id));
+        function setText(id, v) { const e = el(id); v = String(v); if (e._t !== v) { e._t = v; e.textContent = v; } }
+        function setClass(id, c) { const e = el(id); if (e._c !== c) { e._c = c; e.className = c; } }
+
+        let aspect = 16 / 9;
+        let view = { vw: 1280, vh: 720, scale: 1, ox: 0, oy: 0 };
+        let handResultsFresh = false;
+        const lastGesture = {};
+        const lastTracePoint = {};
+        let lastRenderTime = performance.now();
+
+        // Video digambar mode "cover" (tanpa distorsi); landmark dipetakan dengan transform yang sama
+        function updateView() {
+            const vw = videoElement.videoWidth || 1280, vh = videoElement.videoHeight || 720;
+            const cw = canvasElement.width, ch = canvasElement.height;
+            const scale = Math.max(cw / vw, ch / vh);
+            aspect = vw / vh;
+            view = { vw, vh, scale, ox: (cw - vw * scale) / 2, oy: (ch - vh * scale) / 2 };
+        }
+        function toScreen(lm) {
+            return {
+                x: canvasElement.width - (view.ox + lm.x * view.vw * view.scale),
+                y: view.oy + lm.y * view.vh * view.scale
+            };
+        }
+
+        let audioEnabled = true;
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let currentFps = 0;
+
+        // Visual Light Tracer Points
+        let tracerTrails = []; // Array of {x, y, color, age, maxAge}
+
+        // Facial Analysis States
+        let blinkCount = 0;
+        let isEyeClosed = false;
+        let eyeClosedStartTime = 0;
+        let mouthOpenDuration = 0;
+        let isMouthOpen = false;
+
+        // Web Audio Synthesizer
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSynthBeep(freq = 440, type = 'sine', duration = 0.15, gainVal = 0.1) {
+            if (!audioEnabled) return;
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function playGestureChime(type) {
+            if (!audioEnabled) return;
+            if (type === 'blink') {
+                playSynthBeep(880, 'sine', 0.1, 0.08);
+            } else if (type === 'mouth_open') {
+                playSynthBeep(220, 'sawtooth', 0.25, 0.05);
+            } else if (type === 'ok_pinch') {
+                playSynthBeep(1200, 'triangle', 0.15, 0.07);
+            } else if (type === 'rock') {
+                playSynthBeep(150, 'square', 0.3, 0.06);
+            }
+        }
+
+        function resizeCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- MATH & GEOMETRY UTILITIES ---
+        function distance(p1, p2) {
+            return Math.hypot((p1.x - p2.x) * aspect, p1.y - p2.y);
+        }
+
+        // Calculate Eye Aspect Ratio (EAR)
+        function calculateEAR(landmarks, eyeIndices) {
+            // eyeIndices = [left, top1, top2, right, bottom2, bottom1]
+            const p1 = landmarks[eyeIndices[0]];
+            const p2 = landmarks[eyeIndices[1]];
+            const p3 = landmarks[eyeIndices[2]];
+            const p4 = landmarks[eyeIndices[3]];
+            const p5 = landmarks[eyeIndices[4]];
+            const p6 = landmarks[eyeIndices[5]];
+
+            const v1 = distance(p2, p6);
+            const v2 = distance(p3, p5);
+            const h = distance(p1, p4);
+
+            return (v1 + v2) / (2.0 * h);
+        }
+
+        // Calculate Mouth Aspect Ratio (MAR)
+        function calculateMAR(landmarks) {
+            // Upper lip inner: 13, Lower lip inner: 14
+            // Left corner: 61, Right corner: 291
+            const top = landmarks[13];
+            const bottom = landmarks[14];
+            const left = landmarks[61];
+            const right = landmarks[291];
+
+            const v = distance(top, bottom);
+            const h = distance(left, right);
+            return v / h;
+        }
+
+        // Estimate Smile Ratio
+        function calculateSmileRatio(landmarks) {
+            // Lip corners width vs face width
+            const leftCorner = landmarks[61];
+            const rightCorner = landmarks[291];
+            const leftCheek = landmarks[234];
+            const rightCheek = landmarks[454];
+
+            const mouthWidth = distance(leftCorner, rightCorner);
+            const faceWidth = distance(leftCheek, rightCheek);
+            return mouthWidth / faceWidth;
+        }
+
+        // Estimate Head Pose (Pitch, Yaw, Roll)
+        function estimateHeadPose(landmarks) {
+            const noseTip = landmarks[1], chin = landmarks[152];
+            const eyeA = landmarks[33], eyeB = landmarks[263];
+            const eyeCenter = { x: (eyeA.x + eyeB.x) / 2, y: (eyeA.y + eyeB.y) / 2 };
+            const eyeDist = distance(eyeA, eyeB) || 1;
+            const faceH = distance(eyeCenter, chin) || 1;
+
+            // Perkiraan kasar, dinormalisasi ukuran wajah. Positif = menoleh ke kanan layar / menengadah.
+            const yaw = Math.round(-((noseTip.x - eyeCenter.x) * aspect / eyeDist) * 90);
+            const pitch = Math.round((0.42 - (noseTip.y - eyeCenter.y) / faceH) * 150);
+            const roll = Math.round(-Math.atan2(eyeB.y - eyeA.y, (eyeB.x - eyeA.x) * aspect) * 180 / Math.PI);
+            return { pitch, yaw, roll };
+        }
+
+        // --- HAND FINGER COUNTING & GESTURE RECOGNITION ---
+        function analyzeHand(landmarks) {
+            const wrist = landmarks[0];
+            const palm = distance(wrist, landmarks[9]) || 1;
+            // Jari "naik" jika ujungnya lebih jauh dari pergelangan daripada sendi PIP (tidak bergantung rotasi tangan)
+            const ext = (tip, pip) => distance(landmarks[tip], wrist) > distance(landmarks[pip], wrist) * 1.1;
+
+            const isThumbUp = distance(landmarks[4], landmarks[17]) > distance(landmarks[3], landmarks[17]) * 1.05;
+            const isIndexUp = ext(8, 6);
+            const isMiddleUp = ext(12, 10);
+            const isRingUp = ext(16, 14);
+            const isPinkyUp = ext(20, 18);
+
+            const count = [isThumbUp, isIndexUp, isMiddleUp, isRingUp, isPinkyUp].filter(Boolean).length;
+            const pinchRatio = distance(landmarks[4], landmarks[8]) / palm;
+            const isPinching = pinchRatio < 0.3;
+
+            let gesture = "UNKNOWN";
+            if (isPinching && isMiddleUp && isRingUp && isPinkyUp) {
+                gesture = "OK / PINCH 👌";
+            } else if (count === 0) {
+                gesture = "FIST ✊";
+            } else if (count === 5) {
+                gesture = "OPEN PALM ✋";
+            } else if (isIndexUp && isMiddleUp && !isRingUp && !isPinkyUp && !isThumbUp) {
+                gesture = "PEACE / V ✌️";
+            } else if (isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp) {
+                gesture = "POINTING ☝️";
+            } else if (isIndexUp && isPinkyUp && !isMiddleUp && !isRingUp) {
+                gesture = "ROCK ON 🤘";
+            } else if (isThumbUp && !isIndexUp && !isMiddleUp && !isRingUp && !isPinkyUp) {
+                gesture = "THUMBS UP 👍";
+            }
+
+            const a = toScreen(landmarks[4]), b = toScreen(landmarks[8]);
+            return {
+                count, gesture, isIndexUp, isPinching,
+                indexTip: b,
+                pinchTip: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+            };
+        }
+
+        // --- MEDIAPIPE PIPELINE & PIPELINE STORAGE ---
+        let latestFaceLandmarks = null;
+        let latestHandResults = null;
+
+        // Initialize FaceMesh
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`
+        });
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+        faceMesh.onResults(results => {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                latestFaceLandmarks = results.multiFaceLandmarks[0];
+            } else {
+                latestFaceLandmarks = null;
+            }
+        });
+
+        // Initialize Hands
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`
+        });
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+        hands.onResults(results => {
+            latestHandResults = results;
+            handResultsFresh = true;
+        });
+
+        // Loop inferensi (terpisah dari render supaya animasi tetap mulus)
+        let inferFrames = 0, lastStatTime = performance.now();
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                const t0 = performance.now();
+                try {
+                    await faceMesh.send({ image: videoElement });
+                    await hands.send({ image: videoElement });
+                } catch (e) { console.warn('Inference error:', e); }
+                const now = performance.now();
+                inferFrames++;
+                if (now - lastStatTime >= 1000) {
+                    setText('fpsCounter', Math.round(inferFrames * 1000 / (now - lastStatTime)));
+                    setText('latencyCounter', Math.round(now - t0) + 'ms');
+                    inferFrames = 0;
+                    lastStatTime = now;
+                }
+            },
+            width: 1280,
+            height: 720
+        });
+
+        function renderLoop() {
+            requestAnimationFrame(renderLoop);
+            try { renderUnifiedScene(); } catch (e) { console.warn('Render error:', e); }
+        }
+        requestAnimationFrame(renderLoop);
+
+        camera.start().then(() => {
+            statusIndicator.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> SYSTEM ACTIVE: Cyber AI Engine Running`;
+            statusIndicator.className = "mt-2 text-[11px] font-semibold text-emerald-400 flex items-center gap-1.5";
+        }).catch(err => {
+            statusIndicator.innerText = "Camera Access Error: " + err + " (allow camera permission & open via HTTPS or localhost)";
+            statusIndicator.className = "mt-2 text-[11px] font-semibold text-rose-400";
+        });
+
+        // --- UNIFIED CANVAS RENDER ENGINE ---
+        function renderUnifiedScene() {
+            // 1. Clear & Mirror Camera Frame
+            updateView();
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.translate(canvasElement.width, 0);
+            canvasCtx.scale(-1, 1);
+            if (videoElement.readyState >= 2) {
+                canvasCtx.drawImage(videoElement, view.ox, view.oy, view.vw * view.scale, view.vh * view.scale);
+            }
+            canvasCtx.restore();
+
+            // Dark Cyberpunk Vignette Filter
+            canvasCtx.fillStyle = 'rgba(3, 7, 18, 0.6)';
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // Grid Background Lines
+            drawCyberGrid();
+
+            // 2. Render Facial Tracking & Micro-Expression Analysis
+            if (latestFaceLandmarks) {
+                setText('faceDetectedBadge', "TRACKING");
+                setClass('faceDetectedBadge', "text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40");
+
+                // Indices for Eye Aspect Ratio
+                const leftEyeIdx = [33, 160, 158, 133, 153, 144];
+                const rightEyeIdx = [362, 385, 387, 263, 373, 380];
+
+                const leftEAR = calculateEAR(latestFaceLandmarks, leftEyeIdx);
+                const rightEAR = calculateEAR(latestFaceLandmarks, rightEyeIdx);
+                const avgEAR = (leftEAR + rightEAR) / 2.0;
+
+                const mar = calculateMAR(latestFaceLandmarks);
+                const smileRatio = calculateSmileRatio(latestFaceLandmarks);
+                const headPose = estimateHeadPose(latestFaceLandmarks);
+
+                // Update UI Metrics
+                setText('earVal', avgEAR.toFixed(2));
+                document.getElementById('earBar').style.width = Math.min(100, (avgEAR / 0.4) * 100) + '%';
+                
+                setText('marVal', mar.toFixed(2));
+                document.getElementById('marBar').style.width = Math.min(100, (mar / 0.8) * 100) + '%';
+
+                setText('pitchVal', headPose.pitch + '°');
+                setText('yawVal', headPose.yaw + '°');
+                setText('rollVal', headPose.roll + '°');
+
+                // Blink Detection Logic
+                if (avgEAR < (isEyeClosed ? 0.22 : 0.18)) {
+                    if (!isEyeClosed) {
+                        isEyeClosed = true;
+                        blinkCount++;
+                        setText('blinkCount', blinkCount);
+                        playGestureChime('blink');
+                    }
+                    setText('eyeStateText', "BLINKING");
+                    setClass('eyeStateText', "text-xs font-bold text-amber-400 mt-1 glow-amber");
+                } else {
+                    isEyeClosed = false;
+                    setText('eyeStateText', "OPEN");
+                    setClass('eyeStateText', "text-xs font-bold text-cyan-300 mt-1");
+                }
+
+                // Mouth Status & Smile Logic
+                if (mar > (isMouthOpen ? 0.38 : 0.45)) {
+                    if (!isMouthOpen) playGestureChime('mouth_open');
+                    isMouthOpen = true;
+                    setText('mouthStateText', "OPEN");
+                    setClass('mouthStateText', "text-xs font-bold text-fuchsia-400 mt-1 glow-fuchsia");
+                } else {
+                    isMouthOpen = false;
+                    setText('mouthStateText', "CLOSED");
+                    setClass('mouthStateText', "text-xs font-bold text-slate-400 mt-1");
+                }
+
+                if (smileRatio > 0.42) {
+                    setText('expressionText', "SMILING 😊");
+                    setClass('expressionText', "text-xs font-bold text-emerald-400 mt-1 glow-cyan");
+                } else if (isMouthOpen) {
+                    setText('expressionText', "TALKING / SURPRISED 😮");
+                    setClass('expressionText', "text-xs font-bold text-amber-300 mt-1");
+                } else {
+                    setText('expressionText', "NEUTRAL 😐");
+                    setClass('expressionText', "text-xs font-bold text-slate-300 mt-1");
+                }
+
+                // Draw Neon Face Overlay HUD
+                drawFaceHUD(latestFaceLandmarks, leftEyeIdx, rightEyeIdx);
+            } else {
+                setText('faceDetectedBadge', "NO FACE");
+                setClass('faceDetectedBadge', "text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40");
+            }
+
+            // 3. Render Hand Skeleton & Gesture Analysis
+            let totalFingers = 0;
+            let leftFingers = 0;
+            let rightFingers = 0;
+            let activeGesturesList = [];
+            let isDrawing = false;
+
+            if (latestHandResults && latestHandResults.multiHandLandmarks) {
+                const handsCount = latestHandResults.multiHandLandmarks.length;
+                setText('handsCountBadge', `${handsCount} HANDS`);
+                setClass('handsCountBadge', "text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40");
+
+                latestHandResults.multiHandLandmarks.forEach((landmarks, idx) => {
+                    // MediaPipe mengasumsikan input mirror; feed kita tidak di-mirror, jadi label dibalik
+                    const label = latestHandResults.multiHandedness[idx].label;
+                    const handedness = label === 'Left' ? 'Right' : 'Left';
+                    const handData = analyzeHand(landmarks);
+
+                    if (handData.gesture !== lastGesture[handedness]) {
+                        if (handData.gesture.startsWith('OK')) playGestureChime('ok_pinch');
+                        else if (handData.gesture.startsWith('ROCK')) playGestureChime('rock');
+                        lastGesture[handedness] = handData.gesture;
+                    }
+
+                    if (handedness === 'Right') {
+                        rightFingers = handData.count;
+                    } else {
+                        leftFingers = handData.count;
+                    }
+
+                    if (handData.gesture !== "UNKNOWN") {
+                        activeGesturesList.push(handData.gesture);
+                    }
+
+                    // Draw Cyber Hand Skeleton
+                    drawHandSkeleton(landmarks, handData);
+
+                    // MID-AIR SPATIAL LIGHT TRACER (titik disambung garis)
+                    if (handData.gesture === "POINTING ☝️" || handData.isPinching) {
+                        isDrawing = true;
+                        if (handResultsFresh) {
+                            const pos = handData.isPinching ? handData.pinchTip : handData.indexTip;
+                            const pt = {
+                                x: pos.x, y: pos.y,
+                                color: handData.isPinching ? '#d946ef' : '#06b6d4',
+                                life: 1.0, decay: 0.012,
+                                prev: lastTracePoint[handedness] || null
+                            };
+                            tracerTrails.push(pt);
+                            if (tracerTrails.length > 1500) tracerTrails.shift();
+                            lastTracePoint[handedness] = pt;
+                        }
+                    } else {
+                        lastTracePoint[handedness] = null;
+                    }
+                });
+
+                totalFingers = leftFingers + rightFingers;
+            } else {
+                setText('handsCountBadge', "0 HANDS");
+                setClass('handsCountBadge', "text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400");
+            }
+
+            // Update Hand Dashboard Stats
+            setText('leftFingersVal', leftFingers);
+            setText('rightFingersVal', rightFingers);
+            setText('activeGestureText', activeGesturesList.length > 0 ? activeGesturesList.join(" | ") : "NO ACTIVE GESTURE");
+
+            setText('tracerStatusBadge', isDrawing ? 'DRAWING' : 'READY');
+            setClass('tracerStatusBadge', isDrawing
+                ? "text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40"
+                : "text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40");
+
+            // Mobile Quick Stats
+            setText('quickMobileStats', `Blinks: ${blinkCount} | Mouth: ${isMouthOpen ? 'OPEN' : 'CLOSED'} | Fingers: ${totalFingers} (${activeGesturesList[0] || 'Idle'})`);
+
+            // 4. Render Spatial Mid-Air Light Trails
+            renderLightTraces();
+            handResultsFresh = false;
+        }
+
+        // --- DRAWING HUD OVERLAYS & MESHES ---
+        function drawCyberGrid() {
+            canvasCtx.strokeStyle = 'rgba(6, 182, 212, 0.05)';
+            canvasCtx.lineWidth = 1;
+            const step = 60;
+            for (let x = 0; x < canvasElement.width; x += step) {
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(x, 0);
+                canvasCtx.lineTo(x, canvasElement.height);
+                canvasCtx.stroke();
+            }
+            for (let y = 0; y < canvasElement.height; y += step) {
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(0, y);
+                canvasCtx.lineTo(canvasElement.width, y);
+                canvasCtx.stroke();
+            }
+        }
+
+        function drawFaceHUD(landmarks, leftEyeIdx, rightEyeIdx) {
+            // Convert Landmark to Screen Pixel
+            const getPt = (idx) => toScreen(landmarks[idx]);
+
+            // Draw Eyes Reticles
+            [leftEyeIdx, rightEyeIdx].forEach(eyeIdx => {
+                canvasCtx.beginPath();
+                eyeIdx.forEach((idx, i) => {
+                    const pt = getPt(idx);
+                    if (i === 0) canvasCtx.moveTo(pt.x, pt.y);
+                    else canvasCtx.lineTo(pt.x, pt.y);
+                });
+                canvasCtx.closePath();
+                canvasCtx.strokeStyle = '#06b6d4';
+                canvasCtx.lineWidth = 1.5;
+                canvasCtx.shadowColor = '#06b6d4';
+                canvasCtx.shadowBlur = 8;
+                canvasCtx.stroke();
+                canvasCtx.shadowBlur = 0;
+            });
+
+            // Draw Mouth Mesh Outline
+            const mouthOuterIdx = [61, 185, 40, 39, 37, 0, 267, 269, 270, 291, 321, 314, 17, 84, 91];
+            canvasCtx.beginPath();
+            mouthOuterIdx.forEach((idx, i) => {
+                const pt = getPt(idx);
+                if (i === 0) canvasCtx.moveTo(pt.x, pt.y);
+                else canvasCtx.lineTo(pt.x, pt.y);
+            });
+            canvasCtx.closePath();
+            canvasCtx.strokeStyle = '#d946ef';
+            canvasCtx.lineWidth = 1.5;
+            canvasCtx.shadowColor = '#d946ef';
+            canvasCtx.shadowBlur = 8;
+            canvasCtx.stroke();
+            canvasCtx.shadowBlur = 0;
+
+            // Target Crosshair on Nose Tip
+            const nose = getPt(1);
+            canvasCtx.strokeStyle = '#f59e0b';
+            canvasCtx.lineWidth = 1;
+            canvasCtx.beginPath();
+            canvasCtx.arc(nose.x, nose.y, 16, 0, Math.PI * 2);
+            canvasCtx.stroke();
+
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(nose.x - 22, nose.y); canvasCtx.lineTo(nose.x + 22, nose.y);
+            canvasCtx.moveTo(nose.x, nose.y - 22); canvasCtx.lineTo(nose.x, nose.y + 22);
+            canvasCtx.stroke();
+        }
+
+        function drawHandSkeleton(landmarks, handData) {
+            const connections = [
+                [0,1],[1,2],[2,3],[3,4], // Thumb
+                [0,5],[5,6],[6,7],[7,8], // Index
+                [0,9],[9,10],[10,11],[11,12], // Middle
+                [0,13],[13,14],[14,15],[15,16], // Ring
+                [0,17],[17,18],[18,19],[19,20] // Pinky
+            ];
+
+            const getPt = (idx) => toScreen(landmarks[idx]);
+
+            // Draw Bones
+            canvasCtx.strokeStyle = 'rgba(217, 70, 239, 0.6)';
+            canvasCtx.lineWidth = 2.5;
+            connections.forEach(([i, j]) => {
+                const p1 = getPt(i);
+                const p2 = getPt(j);
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(p1.x, p1.y);
+                canvasCtx.lineTo(p2.x, p2.y);
+                canvasCtx.stroke();
+            });
+
+            // Draw Joints
+            for (let i = 0; i < 21; i++) {
+                const pt = getPt(i);
+                canvasCtx.beginPath();
+                canvasCtx.arc(pt.x, pt.y, i % 4 === 0 ? 5 : 3, 0, Math.PI * 2);
+                canvasCtx.fillStyle = (i === 8 || i === 4) ? '#38bdf8' : '#f43f5e';
+                canvasCtx.fill();
+            }
+        }
+
+        function renderLightTraces() {
+            const now = performance.now();
+            const dt = Math.min(50, now - lastRenderTime) / 16.67;
+            lastRenderTime = now;
+
+            canvasCtx.save();
+            canvasCtx.globalCompositeOperation = 'lighter';
+            canvasCtx.lineCap = 'round';
+            for (let i = tracerTrails.length - 1; i >= 0; i--) {
+                const p = tracerTrails[i];
+                p.life -= p.decay * dt;
+                if (p.life <= 0) { tracerTrails.splice(i, 1); continue; }
+
+                canvasCtx.globalAlpha = p.life;
+                canvasCtx.shadowColor = p.color;
+                canvasCtx.shadowBlur = 14 * p.life;
+                if (p.prev && p.prev.life > 0) {
+                    canvasCtx.strokeStyle = p.color;
+                    canvasCtx.lineWidth = 6 * p.life;
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(p.prev.x, p.prev.y);
+                    canvasCtx.lineTo(p.x, p.y);
+                    canvasCtx.stroke();
+                }
+                canvasCtx.fillStyle = p.color;
+                canvasCtx.beginPath();
+                canvasCtx.arc(p.x, p.y, 4 * p.life + 1, 0, Math.PI * 2);
+                canvasCtx.fill();
+            }
+            canvasCtx.restore();
+        }
+
+        // --- BUTTON EVENT LISTENERS ---
+        document.getElementById('toggleAudioBtn').addEventListener('click', () => {
+            initAudio();
+            audioEnabled = !audioEnabled;
+            setText('audioText', audioEnabled ? 'ON' : 'OFF');
+            setText('audioIcon', audioEnabled ? '🔊' : '🔇');
+        });
+
+        function clearTrails() {
+            tracerTrails.forEach(p => p.life = 0);
+            tracerTrails = [];
+            for (const k in lastTracePoint) lastTracePoint[k] = null;
+        }
+        document.getElementById('clearTracesBtn').addEventListener('click', clearTrails);
+
+        document.getElementById('snapBtn').addEventListener('click', () => {
+            canvasElement.toBlob(blob => {
+                if (!blob) return;
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `cyber-vision-${Date.now()}.png`;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            });
+            playSynthBeep(1400, 'triangle', 0.08, 0.06);
+        });
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'c' || e.key === 'C') clearTrails();
+        });
+    </script>
+</body>
+</html>
