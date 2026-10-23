@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Air-Racer (Touchless Arcade Drive)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Touchless Teleprompter & Presentation Control</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -18,821 +18,537 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #030712;
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            user-select: none;
-            touch-action: none;
-        }
-
-        #webcam {
-            transform: scaleX(-1);
-            display: none;
-        }
-
-        #gameCanvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
+            background-color: #090d16;
+            font-family: system-ui, -apple-system, sans-serif;
+            color: #f1f5f9;
         }
 
         /* Glassmorphism Panel */
         .glass-panel {
-            background: rgba(15, 23, 42, 0.82);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            border: 1px solid rgba(6, 182, 212, 0.35);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.25);
         }
 
-        .glow-text-cyan {
-            text-shadow: 0 0 12px rgba(6, 182, 212, 0.8);
+        .glass-panel-dark {
+            background: rgba(3, 7, 18, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .glow-text-pink {
-            text-shadow: 0 0 12px rgba(236, 72, 153, 0.8);
+        /* Mirror Video Feed */
+        #webcam {
+            transform: scaleX(-1);
         }
 
-        .glow-text-amber {
-            text-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
+        /* Custom Scrollbar for Script Editor */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.6);
+        }
+
+        .glow-cyan {
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+
+        /* Teleprompter Text Styling */
+        #teleprompterContainer {
+            scroll-behavior: smooth;
         }
     </style>
 </head>
-<body class="text-slate-100 select-none">
+<body class="flex h-screen w-screen overflow-hidden select-none">
 
-    <!-- Hidden Video Feed & Fullscreen Render Canvas -->
-    <video id="webcam" playsinline></video>
-    <canvas id="gameCanvas"></canvas>
+    <!-- HIDDEN WEBCAM VIDEO FEED -->
+    <video id="webcam" class="hidden" playsinline></video>
 
-    <!-- Top Left Title & Status Header -->
-    <div class="fixed top-4 left-4 z-20 pointer-events-none flex flex-col gap-2 max-w-sm">
-        <div class="glass-panel rounded-2xl p-4 shadow-2xl border border-cyan-500/40">
-            <div class="flex items-center justify-between gap-2">
-                <h1 class="text-xl font-black bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-amber-300 bg-clip-text text-transparent glow-text-cyan flex items-center gap-2">
-                    🏎️ AIR-RACER
-                </h1>
-                <span id="fpsCounter" class="text-[10px] font-mono text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30">FPS: 60</span>
-            </div>
-            <p class="text-[11px] text-slate-400 mt-1">Spatial Gestural Synthwave Racing</p>
-            <div id="statusText" class="mt-2 text-xs font-mono font-semibold text-amber-400 flex items-center gap-1.5">
-                <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                Inisialisasi Sensor Spasial AI...
-            </div>
-        </div>
-    </div>
+    <!-- MAIN APP LAYOUT -->
+    <div class="relative w-full h-full flex flex-col justify-between p-4 gap-4 z-10">
 
-    <!-- Top Right Telemetry HUD -->
-    <div class="fixed top-4 right-4 z-20 pointer-events-none flex flex-col gap-2">
-        <div class="glass-panel rounded-2xl p-4 shadow-2xl border border-indigo-500/40 min-w-[220px]">
-            <div class="text-xs font-mono text-cyan-400 font-bold border-b border-cyan-500/20 pb-1 mb-2 flex justify-between">
-                <span>VEHICLE TELEMETRY</span>
-                <span id="nitroReadyText" class="text-amber-400 animate-pulse hidden">NITRO READY</span>
-            </div>
-            
-            <div class="space-y-2 font-mono text-xs">
-                <!-- Speed Display -->
+        <!-- TOP HEADER HUD -->
+        <header class="flex justify-between items-center glass-panel rounded-2xl p-4 shadow-xl z-20">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center font-bold text-xl shadow-lg glow-cyan">
+                    🎙️
+                </div>
                 <div>
-                    <div class="flex justify-between text-slate-400 text-[10px] mb-0.5">
-                        <span>SPEED</span>
-                        <span id="speedVal" class="text-cyan-300 font-bold">0 KM/H</span>
-                    </div>
-                    <div class="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden border border-cyan-500/20">
-                        <div id="speedBar" class="bg-gradient-to-r from-cyan-500 to-fuchsia-500 h-full w-0 transition-all duration-75"></div>
-                    </div>
+                    <h1 class="text-lg font-black tracking-wide bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
+                        AI SPATIAL PROMPTER & PRESENTER
+                    </h1>
+                    <p class="text-[11px] text-slate-400 font-mono">Touchless Gesture-Controlled Assistant</p>
+                </div>
+            </div>
+
+            <!-- Mode Switcher & Status -->
+            <div class="flex items-center gap-4">
+                <!-- Mode Toggle Buttons -->
+                <div class="flex bg-slate-950/80 p-1 rounded-xl border border-slate-800 text-xs font-mono">
+                    <button id="btnModePrompter" class="px-4 py-2 rounded-lg bg-cyan-500 text-slate-950 font-bold shadow-md transition">
+                        📜 TELEPROMPTER
+                    </button>
+                    <button id="btnModePresentation" class="px-4 py-2 rounded-lg text-slate-400 hover:text-white transition">
+                        📊 PRESENTATION SLIDES
+                    </button>
                 </div>
 
-                <!-- Nitro Gauge -->
-                <div>
-                    <div class="flex justify-between text-slate-400 text-[10px] mb-0.5">
-                        <span>NITRO BOOST</span>
-                        <span id="nitroVal" class="text-amber-300 font-bold">100%</span>
-                    </div>
-                    <div class="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden border border-amber-500/20">
-                        <div id="nitroBar" class="bg-gradient-to-r from-amber-500 to-red-500 h-full w-full transition-all duration-75"></div>
-                    </div>
+                <!-- Gesture Status Indicator -->
+                <div id="gestureBadge" class="flex items-center gap-2 bg-slate-900/90 border border-slate-700/60 px-3 py-1.5 rounded-xl font-mono text-xs text-amber-400">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="gestureText">Inisialisasi Sensor...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- CENTER CONTENT AREA (TELEPROMPTER OR PRESENTATION) -->
+        <main class="relative flex-1 rounded-3xl overflow-hidden glass-panel-dark border border-cyan-500/20 shadow-2xl flex">
+
+            <!-- MODE 1: TELEPROMPTER VIEW -->
+            <div id="prompterView" class="w-full h-full relative flex flex-col justify-center items-center overflow-hidden">
+                <!-- Reading Focus Highlight Zone -->
+                <div class="absolute inset-x-0 h-28 top-1/2 -translate-y-1/2 bg-cyan-500/10 border-y border-cyan-500/30 pointer-events-none z-10 flex items-center justify-between px-6">
+                    <span class="text-cyan-400 text-xs font-mono">► READING ZONE</span>
+                    <span class="text-cyan-400 text-xs font-mono">READING ZONE ◄</span>
                 </div>
 
-                <!-- Steer Angle & Gestures -->
-                <div class="pt-1 border-t border-slate-700/50 text-[11px] space-y-1">
-                    <div class="flex justify-between">
-                        <span class="text-slate-400">STEER ANG:</span>
-                        <span id="steerAngleText" class="text-white font-bold">0°</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-slate-400">GAS / ACCEL:</span>
-                        <span id="gasStatus" class="text-emerald-400 font-bold">OFF</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-slate-400">BRAKE / DRIFT:</span>
-                        <span id="brakeStatus" class="text-rose-400 font-bold">OFF</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-slate-400">NITRO WARP:</span>
-                        <span id="nitroStatus" class="text-amber-400 font-bold">OFF</span>
+                <!-- Scrolling Script Container -->
+                <div id="teleprompterContainer" class="w-full h-full overflow-y-auto px-16 py-[40vh] text-center space-y-8 scroll-smooth">
+                    <div id="scriptContent" class="text-3xl md:text-5xl font-bold leading-relaxed text-slate-200 transition-all">
+                        <!-- Script text will render here -->
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Center Overlay Info Game Over / Start Prompt -->
-    <div id="startPrompt" class="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-opacity duration-300">
-        <div class="glass-panel rounded-3xl p-6 text-center max-w-md border border-cyan-500/50 shadow-2xl space-y-4">
-            <div class="text-4xl">🏎️💨</div>
-            <h2 class="text-2xl font-black bg-gradient-to-r from-cyan-400 to-fuchsia-500 bg-clip-text text-transparent glow-text-cyan">
-                CYBERPUNK AIR-RACER
-            </h2>
-            <p class="text-xs text-slate-300 leading-relaxed font-mono">
-                Pegang kemudi imajiner di udara dengan <span class="text-cyan-300 font-bold">kedua tangan</span>.<br>
-                Buka suara audio dan izinkan akses kamera untuk memulai balapan!
-            </p>
+            <!-- MODE 2: PRESENTATION SLIDES VIEW (HIDDEN INITIALLY) -->
+            <div id="presentationView" class="hidden w-full h-full relative flex-col justify-center items-center p-8">
+                <!-- Slide Canvas Container -->
+                <div id="slideCard" class="w-full h-full max-w-5xl bg-slate-900/90 rounded-2xl border border-cyan-500/30 shadow-2xl p-10 flex flex-col justify-between relative overflow-hidden">
+                    <div class="flex justify-between items-center text-xs font-mono text-cyan-400 border-b border-slate-800 pb-3">
+                        <span id="slideCategory">KEYNOTE PRESENTATION</span>
+                        <span id="slideCounter">SLIDE 1 / 4</span>
+                    </div>
 
-            <div class="text-left bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-[11px] font-mono space-y-1.5 text-slate-300">
-                <div class="text-cyan-400 font-bold mb-1">🎮 CONTROL GESTURES:</div>
-                <div>✊✊ <span class="text-white">Dua Kepalan:</span> Putar posisi tangan untuk Steering</div>
-                <div>🖐️ <span class="text-emerald-400 font-bold">Tangan Kanan Buka:</span> Gas / Akselerasi</div>
-                <div>✊/🖐️ <span class="text-rose-400 font-bold">Tangan Kiri Buka/Tutup:</span> Rem / Drift</div>
-                <div>👍 <span class="text-amber-400 font-bold">Jempol Kanan Naik:</span> Nitro Boost (100% Speed)</div>
+                    <!-- Slide Main Body -->
+                    <div class="my-auto space-y-6">
+                        <h2 id="slideTitle" class="text-4xl font-black bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">
+                            Judul Slide
+                        </h2>
+                        <ul id="slideBullets" class="space-y-4 text-lg md:text-xl text-slate-300 font-medium list-disc list-inside">
+                            <!-- Slide points here -->
+                        </ul>
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs font-mono text-slate-500 pt-3 border-t border-slate-800/60">
+                        <span>AI Spatial Gesture Controller</span>
+                        <span>Usap Tangan Kanan/Kiri untuk Pindah Slide</span>
+                    </div>
+
+                    <!-- Air Drawing Canvas Overlay -->
+                    <canvas id="airCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-20"></canvas>
+                    <!-- Laser Pointer HUD Dot -->
+                    <div id="laserPointer" class="absolute w-5 h-5 bg-rose-500 rounded-full shadow-[0_0_15px_#f43f5e] pointer-events-none hidden z-30 transition-transform duration-75 -translate-x-1/2 -translate-y-1/2"></div>
+                </div>
             </div>
 
-            <button id="btnStartGame" class="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-600 font-bold text-white shadow-lg shadow-cyan-500/30 hover:opacity-90 active:scale-95 transition pointer-events-auto">
-                START SYNTH RACING
+            <!-- WEBCAM PREVIEW OVERLAY (BOTTOM-RIGHT PIP) -->
+            <div class="absolute bottom-4 right-4 w-52 h-36 rounded-2xl overflow-hidden glass-panel border border-cyan-500/40 shadow-2xl z-30 flex flex-col">
+                <div class="relative w-full h-full">
+                    <canvas id="webcamCanvas" class="w-full h-full object-cover"></canvas>
+                    <!-- Air Height Speed Bar Overlay -->
+                    <div class="absolute left-2 top-2 bottom-2 w-2 bg-slate-800/80 rounded-full overflow-hidden border border-slate-700">
+                        <div id="speedLevelBar" class="w-full bg-gradient-to-t from-cyan-500 to-indigo-500 h-0 transition-all duration-100 absolute bottom-0"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-950/90 text-[10px] font-mono px-2 py-1 text-slate-400 flex justify-between items-center border-t border-slate-800">
+                    <span>CAMERA FEED</span>
+                    <span id="speedValText" class="text-cyan-300 font-bold">SPD: 0x</span>
+                </div>
+            </div>
+
+            <!-- SCRIPT / SLIDE EDITOR SIDEBAR (TOGGLEABLE) -->
+            <div id="editorSidebar" class="absolute left-4 top-4 bottom-4 w-96 glass-panel rounded-2xl p-4 z-30 shadow-2xl flex flex-col gap-3 transition-transform duration-300 -translate-x-[110%]">
+                <div class="flex justify-between items-center border-b border-slate-700/60 pb-2">
+                    <h3 class="font-bold text-sm text-cyan-300 font-mono">📝 EDITOR NASKAH & SLIDE</h3>
+                    <button id="btnCloseEditor" class="text-slate-400 hover:text-white font-bold text-sm">✕</button>
+                </div>
+                <div class="flex-1 flex flex-col gap-2">
+                    <label class="text-xs font-mono text-slate-400">Naskah Teleprompter:</label>
+                    <textarea id="inputPrompterScript" class="flex-1 bg-slate-950/80 rounded-xl p-3 text-xs font-sans text-slate-200 border border-slate-800 focus:outline-none focus:border-cyan-500/50 resize-none"></textarea>
+                </div>
+                <button id="btnSaveScript" class="w-full py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition">
+                    UPDATE CONTENT
+                </button>
+            </div>
+
+            <button id="btnOpenEditor" class="absolute top-4 left-4 z-20 px-3 py-1.5 rounded-xl glass-panel text-xs font-mono text-cyan-300 hover:bg-slate-800/80 border border-cyan-500/30 transition shadow-lg flex items-center gap-1.5">
+                ✏️ Edit Naskah
             </button>
-        </div>
+        </main>
+
+        <!-- BOTTOM CONTROLS FOOTER GUIDE -->
+        <footer class="glass-panel rounded-2xl p-3 z-20 flex justify-around items-center text-xs font-mono text-slate-300 border border-slate-800">
+            <div class="flex items-center gap-1.5">
+                <span class="text-base">🖐️</span>
+                <span><b class="text-cyan-400">Tangan Naik/Turun:</b> Speed Scroll / Pan</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="text-base">✊</span>
+                <span><b class="text-rose-400">Kepal Tangan:</b> PAUSE / STOP</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="text-base">👉 / 👈</span>
+                <span><b class="text-amber-400">Tunjuk Kanan/Kiri:</b> Next/Prev Slide</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="text-base">☝️</span>
+                <span><b class="text-indigo-400">Telunjuk:</b> Laser Pointer</span>
+            </div>
+        </footer>
     </div>
 
-    <!-- Bottom Controls Visual Guide -->
-    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 w-[92%] max-w-xl pointer-events-none">
-        <div class="glass-panel rounded-2xl p-3 text-center text-[11px] font-mono text-cyan-200 border border-cyan-500/30 flex justify-around items-center gap-2">
-            <div>✊✊ <span class="text-white font-bold">Steer:</span> Rotate Hands Angle</div>
-            <div>🖐️ <span class="text-emerald-400 font-bold">Right Open:</span> Gas</div>
-            <div>🖐️ <span class="text-rose-400 font-bold">Left Open:</span> Brake/Drift</div>
-            <div>👍 <span class="text-amber-400 font-bold">Right Thumb Up:</span> Nitro</div>
-        </div>
-    </div>
-
+    <!-- JAVASCRIPT LOGIC -->
     <script>
-        // --- CANVAS & SYSTEM SETUP ---
+        // --- DEFAULT DATA & STATE ---
+        let currentMode = 'prompter'; // 'prompter' | 'presentation'
+        let scriptText = `Selamat pagi dan salam sejahtera untuk kita semua.
+
+Hari ini saya ingin mempresentasikan perkembangan terbaru mengenai teknologi AI Spatial Computing yang dapat membantu produktivitas presentasi secara bebas genggam.
+
+Dengan menggunakan sensor gestur tangan non-sentuh, seorang pembicara tidak lagi memerlukan remote clicker atau bantuan operator saat menyampaikan naskah di panggung.
+
+Cukup naikkan telapak tangan untuk mempercepat gulir naskah, atau kepalkan tangan untuk menghentikan teks seketika saat ingin berinteraksi dengan audiens.
+
+Mari kita masuk ke poin pembahasan berikutnya...`;
+
+        const presentationSlides = [
+            {
+                category: "PRODUKTIVITAS SPASIAL AI",
+                title: "Solusi Presentasi Bebas Sentuh",
+                bullets: [
+                    "Mengurangi ketergantungan pada alat fisik seperti remote clicker",
+                    "Navigasi slide yang natural dan intuitif melalui gerakan tangan",
+                    "Meningkatkan fokus pembicara langsung kepada audiens"
+                ]
+            },
+            {
+                category: "FITUR UTAMA - PROMPTER",
+                title: "Kontrol Kecepatan Berbasis Ketinggian",
+                bullets: [
+                    "Ketinggian pergelangan tangan mengatur kecepatan gulir naskah secara dinamis",
+                    "Fist gesture (✊) secara instan membekukan posisi gulir teks",
+                    "Mencegah teks mendahului tempo bicara alami sang komunikator"
+                ]
+            },
+            {
+                category: "FITUR UTAMA - PRESENTASI",
+                title: "Laser Pointer & Air Highlighter",
+                bullets: [
+                    "Gunakan jari telunjuk (☝️) sebagai Laser Pointer bersinar di layar",
+                    "Pinch gesture (👌) untuk melukis/menandai poin penting secara langsung di udara",
+                    "Swipe gestur tangan kanan/kiri untuk berganti slide secara mulus"
+                ]
+            },
+            {
+                category: "KESIMPULAN",
+                title: "Masa Depan Komunikasi Publik",
+                bullets: [
+                    "Interaksi manusia dan komputer yang makin efisien dan tidak terlihat",
+                    "Siap digunakan untuk seminar, studio berita, maupun presentasi profesional"
+                ]
+            }
+        ];
+
+        let currentSlideIndex = 0;
+        let autoScrollSpeed = 0; // Speed multiplier
+        let isPaused = false;
+        let lastSwipeTime = 0;
+
+        // --- DOM ELEMENTS ---
         const videoElement = document.getElementById('webcam');
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        const webcamCanvas = document.getElementById('webcamCanvas');
+        const webcamCtx = webcamCanvas.getContext('2d');
+        const airCanvas = document.getElementById('airCanvas');
+        const airCtx = airCanvas.getContext('2d');
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        const prompterView = document.getElementById('prompterView');
+        const presentationView = document.getElementById('presentationView');
+        const scriptContent = document.getElementById('scriptContent');
+        const teleprompterContainer = document.getElementById('teleprompterContainer');
+
+        const btnModePrompter = document.getElementById('btnModePrompter');
+        const btnModePresentation = document.getElementById('btnModePresentation');
+        const gestureBadge = document.getElementById('gestureBadge');
+        const gestureText = document.getElementById('gestureText');
+        const speedLevelBar = document.getElementById('speedLevelBar');
+        const speedValText = document.getElementById('speedValText');
+        const laserPointer = document.getElementById('laserPointer');
+
+        const editorSidebar = document.getElementById('editorSidebar');
+        const inputPrompterScript = document.getElementById('inputPrompterScript');
+
+        // Resize Air Canvas
+        function resizeAirCanvas() {
+            airCanvas.width = airCanvas.parentElement.clientWidth;
+            airCanvas.height = airCanvas.parentElement.clientHeight;
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        window.addEventListener('resize', resizeAirCanvas);
 
-        // --- GAME VARIABLES ---
-        let gameActive = false;
-        let speed = 0; // KM/H equivalent internal
-        let maxSpeed = 240;
-        let nitroSpeed = 360;
-        let accel = 0.8;
-        let friction = 0.985;
-        let brakeForce = 0.92;
-        let distance = 0;
-        let playerX = 0; // -1 (Left) to +1 (Right)
-        let playerY = 0;
-        let steerAngle = 0; // Degrees
-        let cameraTilt = 0;
-
-        // Gestures state
-        let isGas = false;
-        let isBrake = false;
-        let isNitro = false;
-        let nitroGauge = 100;
-        let isRightHandThumbUp = false;
-
-        // Hand Positions
-        let leftHandPos = null;  // {x, y}
-        let rightHandPos = null; // {x, y}
-
-        // Road / Pseudo-3D Track Engine Vars
-        let cameraHeight = 1000;
-        let cameraDepth = 0.8;
-        let roadWidth = 2000;
-        let segmentLength = 200;
-        let segments = [];
-        let trackLength = 0;
-
-        // Traffic / Obstacles
-        let trafficCars = [];
-
-        // Performance FPS
-        let lastFrameTime = performance.now();
-        let fps = 60;
-
-        // --- WEB AUDIO API SYNTHESIZER ---
-        let audioCtx = null;
-        let engineOsc = null;
-        let engineGain = null;
-        let nitroOsc = null;
-        let nitroGain = null;
-
-        function initAudioEngine() {
-            if (audioCtx) return;
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-                // Engine Rev Sound
-                engineOsc = audioCtx.createOscillator();
-                engineGain = audioCtx.createGain();
-                engineOsc.type = 'sawtooth';
-                engineOsc.frequency.setValueAtTime(60, audioCtx.currentTime);
-                engineGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-
-                // Lowpass filter for deep engine roar
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.setValueAtTime(320, audioCtx.currentTime);
-
-                engineOsc.connect(filter);
-                filter.connect(engineGain);
-                engineGain.connect(audioCtx.destination);
-                engineOsc.start();
-
-                // Nitro Sound
-                nitroOsc = audioCtx.createOscillator();
-                nitroGain = audioCtx.createGain();
-                nitroOsc.type = 'sine';
-                nitroOsc.frequency.setValueAtTime(150, audioCtx.currentTime);
-                nitroGain.gain.setValueAtTime(0, audioCtx.currentTime);
-
-                nitroOsc.connect(nitroGain);
-                nitroGain.connect(audioCtx.destination);
-                nitroOsc.start();
-            } catch (e) {
-                console.warn('Audio Init Error:', e);
-            }
+        // --- INIT SCRIPT & SLIDES ---
+        function renderScript() {
+            scriptContent.innerText = scriptText;
+            inputPrompterScript.value = scriptText;
         }
 
-        function updateAudioEngine() {
-            if (!audioCtx || audioCtx.state === 'suspended') return;
-
-            // Pitch engine based on speed
-            const targetFreq = 50 + (speed / maxSpeed) * 220 + (isNitro ? 80 : 0);
-            engineOsc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.05);
-
-            if (isNitro && speed > 50) {
-                nitroGain.gain.setTargetAtTime(0.2, audioCtx.currentTime, 0.05);
-                nitroOsc.frequency.setTargetAtTime(400 + Math.random() * 50, audioCtx.currentTime, 0.05);
-            } else {
-                nitroGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-            }
+        function renderSlide() {
+            const slide = presentationSlides[currentSlideIndex];
+            document.getElementById('slideCategory').innerText = slide.category;
+            document.getElementById('slideCounter').innerText = `SLIDE ${currentSlideIndex + 1} / ${presentationSlides.length}`;
+            document.getElementById('slideTitle').innerText = slide.title;
+            
+            const bulletsContainer = document.getElementById('slideBullets');
+            bulletsContainer.innerHTML = slide.bullets.map(b => `<li class="hover:text-cyan-300 transition">${b}</li>`).join('');
+            
+            // Clear Air Drawing Canvas
+            airCtx.clearRect(0, 0, airCanvas.width, airCanvas.height);
         }
 
-        function playCollisionSound() {
-            if (!audioCtx) return;
-            try {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.3);
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        renderScript();
+        renderSlide();
 
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.3);
-            } catch (e) {}
-        }
+        // --- MODE SWITCHING LOGIC ---
+        btnModePrompter.addEventListener('click', () => {
+            currentMode = 'prompter';
+            prompterView.classList.remove('hidden');
+            prompterView.classList.add('flex');
+            presentationView.classList.add('hidden');
+            presentationView.classList.remove('flex');
 
-        // --- PSEUDO-3D TRACK GENERATION ---
-        function buildTrack() {
-            segments = [];
-            const numSegments = 500;
-            for (let i = 0; i < numSegments; i++) {
-                // Curve generation
-                let curve = 0;
-                if (i > 50 && i < 150) curve = 2;
-                if (i > 180 && i < 280) curve = -2.5;
-                if (i > 320 && i < 420) curve = 3;
+            btnModePrompter.className = "px-4 py-2 rounded-lg bg-cyan-500 text-slate-950 font-bold shadow-md transition";
+            btnModePresentation.className = "px-4 py-2 rounded-lg text-slate-400 hover:text-white transition";
+        });
 
-                segments.push({
-                    index: i,
-                    p1: { world: { z: i * segmentLength }, camera: {}, screen: {} },
-                    p2: { world: { z: (i + 1) * segmentLength }, camera: {}, screen: {} },
-                    curve: curve,
-                    color: Math.floor(i / 3) % 2 ? 
-                        { road: '#0f172a', line: '#06b6d4', curb: '#d946ef' } : 
-                        { road: '#030712', line: '#ffffff', curb: '#3b82f6' }
-                });
-            }
-            trackLength = segments.length * segmentLength;
+        btnModePresentation.addEventListener('click', () => {
+            currentMode = 'presentation';
+            presentationView.classList.remove('hidden');
+            presentationView.classList.add('flex');
+            prompterView.classList.add('hidden');
+            prompterView.classList.remove('flex');
 
-            // Generate Initial Traffic
-            trafficCars = [];
-            for (let i = 0; i < 12; i++) {
-                trafficCars.push({
-                    z: 1000 + i * 2800 + Math.random() * 500,
-                    x: (Math.random() - 0.5) * 1.4,
-                    speed: 40 + Math.random() * 60,
-                    color: i % 2 === 0 ? '#f43f5e' : '#f59e0b',
-                    width: 140
-                });
-            }
-        }
-        buildTrack();
+            btnModePresentation.className = "px-4 py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-md transition";
+            btnModePrompter.className = "px-4 py-2 rounded-lg text-slate-400 hover:text-white transition";
+            
+            setTimeout(resizeAirCanvas, 100);
+        });
 
-        // Project 3D points to 2D Screen
-        function projectPoint(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
-            p.camera.x = (p.world.x || 0) - cameraX;
-            p.camera.y = (p.world.y || 0) - cameraY;
-            p.camera.z = p.world.z - cameraZ;
+        // Editor Sidebar Controls
+        document.getElementById('btnOpenEditor').addEventListener('click', () => {
+            editorSidebar.classList.remove('-translate-x-[110%]');
+        });
+        document.getElementById('btnCloseEditor').addEventListener('click', () => {
+            editorSidebar.classList.add('-translate-x-[110%]');
+        });
+        document.getElementById('btnSaveScript').addEventListener('click', () => {
+            scriptText = inputPrompterScript.value;
+            renderScript();
+            editorSidebar.classList.add('-translate-x-[110%]');
+        });
 
-            const scale = cameraDepth / p.camera.z;
-            p.screen.scale = scale;
-            p.screen.x = Math.round((width / 2) + (scale * p.camera.x * width / 2));
-            p.screen.y = Math.round((height / 2) - (scale * p.camera.y * height / 2));
-            p.screen.w = Math.round(scale * roadWidth * width / 2);
-        }
-
-        // --- GESTURE HELPER MATH & RECOGNITION ---
+        // --- GESTURE MATH HELPERS ---
         function getDistance(p1, p2) {
             return Math.hypot(p1.x - p2.x, p1.y - p2.y);
         }
 
-        function isHandOpen(landmarks) {
+        function isFist(landmarks) {
             const wrist = landmarks[0];
             const tips = [8, 12, 16, 20];
             const mcps = [5, 9, 13, 17];
-            let extended = 0;
+            let curled = 0;
             for (let i = 0; i < tips.length; i++) {
-                if (getDistance(landmarks[tips[i]], wrist) > getDistance(landmarks[mcps[i]], wrist)) {
-                    extended++;
+                if (getDistance(landmarks[tips[i]], wrist) < getDistance(landmarks[mcps[i]], wrist)) {
+                    curled++;
                 }
             }
-            return extended >= 3;
+            return curled >= 3;
         }
 
-        function isThumbUp(landmarks) {
-            const thumbTip = landmarks[4];
-            const thumbMcp = landmarks[2];
+        function isIndexPointing(landmarks) {
+            const indexTip = landmarks[8];
             const indexMcp = landmarks[5];
+            const middleTip = landmarks[12];
             const wrist = landmarks[0];
 
-            // Thumb extended vertically upwards relative to wrist
-            const isUp = thumbTip.y < thumbMcp.y && thumbMcp.y < wrist.y;
-            // Other fingers curled
-            const ringTip = landmarks[16];
-            const ringMcp = landmarks[14];
-            const isRingCurled = getDistance(ringTip, wrist) < getDistance(ringMcp, wrist) * 1.2;
+            const isIndexExtended = getDistance(indexTip, wrist) > getDistance(indexMcp, wrist) * 1.3;
+            const isMiddleCurled = getDistance(middleTip, wrist) < getDistance(landmarks[9], wrist);
 
-            return isUp && isRingCurled;
+            return isIndexExtended && isMiddleCurled;
         }
 
-        // --- GAME LOOP & UPDATE ---
-        function updateGame() {
-            // Steering Physics
-            playerX += (steerAngle / 35) * 0.035 * (speed / 100);
-            playerX = Math.max(-1.4, Math.min(1.4, playerX)); // Clamp on road
-
-            // Camera tilt based on steering
-            cameraTilt += ((steerAngle * 0.01) - cameraTilt) * 0.1;
-
-            // Speed & Nitro Logic
-            if (isNitro && nitroGauge > 0 && speed > 30) {
-                speed += accel * 2.2;
-                if (speed > nitroSpeed) speed = nitroSpeed;
-                nitroGauge = Math.max(0, nitroGauge - 0.75);
-            } else if (isGas) {
-                speed += accel;
-                if (speed > maxSpeed) speed = maxSpeed;
-                // Recharging nitro slowly when driving normally
-                if (nitroGauge < 100) nitroGauge += 0.1;
-            } else {
-                speed *= friction;
-            }
-
-            if (isBrake) {
-                speed *= brakeForce;
-            }
-
-            if (speed < 0.5) speed = 0;
-
-            // Update Distance
-            distance += speed * 1.2;
-            if (distance >= trackLength) distance -= trackLength;
-
-            // Traffic Update
-            trafficCars.forEach(car => {
-                car.z += car.speed;
-                if (car.z > trackLength) car.z -= trackLength;
-
-                // Collision Detection with Player
-                const currentSegment = Math.floor(distance / segmentLength);
-                const playerZ = distance + 400; // Player offset in front of camera
-
-                if (Math.abs(car.z - playerZ) < 180) {
-                    if (Math.abs(car.x - playerX) < 0.35) {
-                        // Crash
-                        speed *= 0.4;
-                        playCollisionSound();
-                        car.z += 600; // Bump forward
-                    }
-                }
-            });
-
-            // UI Telemetry Update
-            document.getElementById('speedVal').innerText = `${Math.round(speed)} KM/H`;
-            document.getElementById('speedBar').style.width = `${Math.min(100, (speed / nitroSpeed) * 100)}%`;
-            document.getElementById('nitroVal').innerText = `${Math.round(nitroGauge)}%`;
-            document.getElementById('nitroBar').style.width = `${nitroGauge}%`;
-            document.getElementById('steerAngleText').innerText = `${Math.round(steerAngle)}°`;
-            
-            document.getElementById('gasStatus').innerText = isGas ? 'ON (OPEN)' : 'OFF';
-            document.getElementById('gasStatus').className = isGas ? 'text-emerald-400 font-bold' : 'text-slate-500 font-bold';
-
-            document.getElementById('brakeStatus').innerText = isBrake ? 'ON (DRIFT)' : 'OFF';
-            document.getElementById('brakeStatus').className = isBrake ? 'text-rose-400 font-bold' : 'text-slate-500 font-bold';
-
-            document.getElementById('nitroStatus').innerText = isNitro ? 'WARP ACTIVE' : 'OFF';
-            document.getElementById('nitroStatus').className = isNitro ? 'text-amber-400 font-bold animate-pulse' : 'text-slate-500 font-bold';
-
-            if (nitroGauge >= 99) {
-                document.getElementById('nitroReadyText').classList.remove('hidden');
-            } else {
-                document.getElementById('nitroReadyText').classList.add('hidden');
-            }
-
-            updateAudioEngine();
+        function isPinch(landmarks) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            return getDistance(thumbTip, indexTip) < 0.08;
         }
 
-        // --- RENDER GAME CANVAS ---
-        function render() {
-            ctx.save();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 1. Render Mirrored Video Feed Background (Cyberpunk Overlay)
-            ctx.save();
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            ctx.restore();
-
-            // Dark Blue Tint Overlay
-            ctx.fillStyle = 'rgba(3, 7, 18, 0.78)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 2. Render Retro Synthwave Horizon / Sky
-            const horizonY = canvas.height * 0.45;
-
-            // Retro Sun
-            const sunGrad = ctx.createLinearGradient(0, horizonY - 120, 0, horizonY);
-            sunGrad.addColorStop(0, '#f59e0b');
-            sunGrad.addColorStop(0.5, '#ec4899');
-            sunGrad.addColorStop(1, '#d946ef');
-
-            ctx.beginPath();
-            ctx.arc(canvas.width / 2, horizonY, 90, Math.PI, 0);
-            ctx.fillStyle = sunGrad;
-            ctx.fill();
-
-            // Sun horizontal grid cuts
-            ctx.fillStyle = 'rgba(3, 7, 18, 0.85)';
-            for (let i = 0; i < 6; i++) {
-                ctx.fillRect(canvas.width / 2 - 95, horizonY - 15 - (i * 12), 190, 3 + i * 0.8);
-            }
-
-            // Horizon Neon Line
-            ctx.strokeStyle = '#06b6d4';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, horizonY);
-            ctx.lineTo(canvas.width, horizonY);
-            ctx.stroke();
-
-            // 3. Render Pseudo-3D Track Segments
-            const baseSegmentIndex = Math.floor(distance / segmentLength);
-            const cameraX = playerX * roadWidth;
-            const cameraZ = distance;
-
-            let x = 0;
-            let dx = 0;
-
-            // Apply Camera Tilt
-            ctx.save();
-            ctx.translate(canvas.width / 2, horizonY);
-            ctx.rotate(cameraTilt);
-            ctx.translate(-canvas.width / 2, -horizonY);
-
-            for (let n = 0; n < 160; n++) {
-                const segment = segments[(baseSegmentIndex + n) % segments.length];
-                const looped = segment.index < baseSegmentIndex;
-
-                segment.p1.world.x = x;
-                segment.p1.world.y = 0;
-                segment.p1.world.z = (looped ? trackLength : 0) + segment.index * segmentLength;
-
-                segment.p2.world.x = x + dx;
-                segment.p2.world.y = 0;
-                segment.p2.world.z = (looped ? trackLength : 0) + (segment.index + 1) * segmentLength;
-
-                x += dx;
-                dx += segment.curve;
-
-                projectPoint(segment.p1, cameraX, cameraHeight, cameraZ, cameraDepth, canvas.width, canvas.height, roadWidth);
-                projectPoint(segment.p2, cameraX, cameraHeight, cameraZ, cameraDepth, canvas.width, canvas.height, roadWidth);
-
-                if (segment.p1.camera.z <= cameraDepth || segment.p2.screen.y >= canvas.height) continue;
-
-                // Draw Segment Road
-                const p1 = segment.p1.screen;
-                const p2 = segment.p2.screen;
-
-                // Grass / Ground Grid
-                ctx.fillStyle = (segment.index % 2) ? '#050b14' : '#030712';
-                ctx.fillRect(0, p2.y, canvas.width, p1.y - p2.y);
-
-                // Road Poly
-                ctx.fillStyle = segment.color.road;
-                ctx.beginPath();
-                ctx.moveTo(p1.x - p1.w, p1.y);
-                ctx.lineTo(p1.x + p1.w, p1.y);
-                ctx.lineTo(p2.x + p2.w, p2.y);
-                ctx.lineTo(p2.x - p2.w, p2.y);
-                ctx.fill();
-
-                // Curbs / Neon Shoulders
-                ctx.fillStyle = segment.color.curb;
-                const curbW1 = p1.w * 0.12;
-                const curbW2 = p2.w * 0.12;
-
-                ctx.beginPath();
-                ctx.moveTo(p1.x - p1.w - curbW1, p1.y);
-                ctx.lineTo(p1.x - p1.w, p1.y);
-                ctx.lineTo(p2.x - p2.w, p2.y);
-                ctx.lineTo(p2.x - p2.w - curbW2, p2.y);
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.moveTo(p1.x + p1.w, p1.y);
-                ctx.lineTo(p1.x + p1.w + curbW1, p1.y);
-                ctx.lineTo(p2.x + p2.w + curbW2, p2.y);
-                ctx.lineTo(p2.x + p2.w, p2.y);
-                ctx.fill();
-
-                // Center Line
-                if (segment.index % 3 === 0) {
-                    ctx.fillStyle = segment.color.line;
-                    const lineW1 = p1.w * 0.03;
-                    const lineW2 = p2.w * 0.03;
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x - lineW1, p1.y);
-                    ctx.lineTo(p1.x + lineW1, p1.y);
-                    ctx.lineTo(p2.x + lineW2, p2.y);
-                    ctx.lineTo(p2.x - lineW2, p2.y);
-                    ctx.fill();
-                }
-            }
-
-            // Render Traffic
-            trafficCars.forEach(car => {
-                const carSegmentIndex = Math.floor(car.z / segmentLength);
-                if (carSegmentIndex >= baseSegmentIndex && carSegmentIndex < baseSegmentIndex + 120) {
-                    const seg = segments[carSegmentIndex % segments.length];
-                    const scale = cameraDepth / (car.z - cameraZ);
-                    const carScreenX = (canvas.width / 2) + (scale * (car.x * roadWidth - cameraX) * canvas.width / 2);
-                    const carScreenY = (canvas.height / 2) - (scale * (0 - cameraHeight) * canvas.height / 2);
-                    const carW = scale * car.width * canvas.width;
-                    const carH = carW * 0.6;
-
-                    if (scale > 0) {
-                        ctx.fillStyle = car.color;
-                        ctx.beginPath();
-                        ctx.roundRect(carScreenX - carW / 2, carScreenY - carH, carW, carH, 6);
-                        ctx.fill();
-                        ctx.strokeStyle = '#ffffff';
-                        ctx.lineWidth = 1.5;
-                        ctx.stroke();
-
-                        // Tail lights
-                        ctx.fillStyle = '#ef4444';
-                        ctx.fillRect(carScreenX - carW * 0.4, carScreenY - carH * 0.4, carW * 0.25, carH * 0.25);
-                        ctx.fillRect(carScreenX + carW * 0.15, carScreenY - carH * 0.4, carW * 0.25, carH * 0.25);
-                    }
-                }
-            });
-
-            ctx.restore(); // Restore Tilt Camera
-
-            // 4. Render Player Cyberpunk Sports Car (Fixed HUD Perspective)
-            const carX = canvas.width / 2;
-            const carY = canvas.height - 80;
-            const carW = 180;
-            const carH = 85;
-
-            ctx.save();
-            ctx.translate(carX, carY);
-            ctx.rotate((steerAngle * 0.008)); // Car body slight tilt
-
-            // Nitro Tail Flame / Speed Streak
-            if (isNitro && speed > 50) {
-                ctx.beginPath();
-                ctx.moveTo(-35, 20);
-                ctx.lineTo(0, 80 + Math.random() * 30);
-                ctx.lineTo(35, 20);
-                ctx.fillStyle = '#f59e0b';
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.moveTo(-18, 20);
-                ctx.lineTo(0, 50 + Math.random() * 20);
-                ctx.lineTo(18, 20);
-                ctx.fillStyle = '#ef4444';
-                ctx.fill();
-            }
-
-            // Car Main Body Glass
-            ctx.beginPath();
-            ctx.roundRect(-carW / 2, -carH / 2, carW, carH, 16);
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-            ctx.fill();
-            ctx.strokeStyle = isNitro ? '#f59e0b' : '#06b6d4';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Cockpit Windshield
-            ctx.beginPath();
-            ctx.roundRect(-carW * 0.35, -carH * 0.4, carW * 0.7, carH * 0.45, 8);
-            ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
-            ctx.fill();
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            // Neon Brake Light Stripe
-            ctx.fillStyle = isBrake ? '#f43f5e' : '#881337';
-            ctx.fillRect(-carW * 0.4, carH * 0.25, carW * 0.8, 8);
-
-            ctx.restore();
-
-            // 5. Render Virtual Touchless Steering Wheel Hologram
-            if (leftHandPos && rightHandPos) {
-                // Draw connecting holographic ring/line
-                const midX = (leftHandPos.x + rightHandPos.x) / 2;
-                const midY = (leftHandPos.y + rightHandPos.y) / 2;
-                const wheelRadius = getDistance(leftHandPos, rightHandPos) / 2;
-
-                ctx.save();
-                ctx.translate(midX, midY);
-
-                // Steering Ring
-                ctx.beginPath();
-                ctx.arc(0, 0, Math.max(50, wheelRadius), 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(6, 182, 212, 0.65)';
-                ctx.lineWidth = 6;
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.arc(0, 0, Math.max(50, wheelRadius) + 8, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(217, 70, 239, 0.35)';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([12, 8]);
-                ctx.stroke();
-
-                // Cross spokes
-                const radAngle = (steerAngle * Math.PI) / 180;
-                ctx.rotate(radAngle);
-
-                ctx.beginPath();
-                ctx.moveTo(-wheelRadius, 0); ctx.lineTo(wheelRadius, 0);
-                ctx.moveTo(0, 0); ctx.lineTo(0, wheelRadius);
-                ctx.strokeStyle = '#38bdf8';
-                ctx.lineWidth = 3;
-                ctx.stroke();
-
-                ctx.restore();
-            }
-
-            // 6. Speed Lines overlay during high speed
-            if (speed > 160) {
-                ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
-                ctx.lineWidth = 1.5;
-                for (let i = 0; i < 12; i++) {
-                    const angle = (i / 12) * Math.PI * 2;
-                    const r1 = 120 + Math.random() * 80;
-                    const r2 = r1 + 60 + (speed * 0.5);
-                    ctx.beginPath();
-                    ctx.moveTo(canvas.width / 2 + Math.cos(angle) * r1, canvas.height / 2 + Math.sin(angle) * r1);
-                    ctx.lineTo(canvas.width / 2 + Math.cos(angle) * r2, canvas.height / 2 + Math.sin(angle) * r2);
-                    ctx.stroke();
-                }
-            }
-
-            ctx.restore();
-        }
-
-        // --- MEDIAPIPE AI HAND TRACKING CALLBACK ---
+        // --- MEDIAPIPE HANDS SETUP ---
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
 
         hands.setOptions({
-            maxNumHands: 2,
+            maxNumHands: 1,
             modelComplexity: 1,
             minDetectionConfidence: 0.65,
             minTrackingConfidence: 0.65
         });
 
-        hands.onResults((results) => {
-            const statusText = document.getElementById('statusText');
-            statusText.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Sensor Spasial Aktif`;
-            statusText.className = "mt-2 text-xs font-mono font-semibold text-emerald-400 flex items-center gap-1.5";
+        let prevPinchPos = null;
 
-            leftHandPos = null;
-            rightHandPos = null;
-            isGas = false;
-            isBrake = false;
-            isNitro = false;
+        hands.onResults((results) => {
+            // Setup Webcam PIP canvas size
+            webcamCanvas.width = videoElement.videoWidth || 320;
+            webcamCanvas.height = videoElement.videoHeight || 240;
+
+            webcamCtx.save();
+            webcamCtx.clearRect(0, 0, webcamCanvas.width, webcamCanvas.height);
+            webcamCtx.translate(webcamCanvas.width, 0);
+            webcamCtx.scale(-1, 1);
+            webcamCtx.drawImage(results.image, 0, 0, webcamCanvas.width, webcamCanvas.height);
+
+            laserPointer.classList.add('hidden');
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                results.multiHandLandmarks.forEach((landmarks, idx) => {
-                    const handedness = results.multiHandedness[idx] ? results.multiHandedness[idx].label : (idx === 0 ? 'Right' : 'Left');
-                    const isRight = handedness === 'Right';
+                const landmarks = results.multiHandLandmarks[0];
 
-                    // Wrist / Hand Center Point
-                    const wrist = {
-                        x: (1 - landmarks[0].x) * canvas.width,
-                        y: landmarks[0].y * canvas.height
-                    };
-
-                    if (isRight) {
-                        rightHandPos = wrist;
-                        isGas = isHandOpen(landmarks);
-                        isNitro = isThumbUp(landmarks);
-                    } else {
-                        leftHandPos = wrist;
-                        isBrake = isHandOpen(landmarks);
-                    }
+                // Draw landmarks on PIP webcam view
+                webcamCtx.fillStyle = '#06b6d4';
+                landmarks.forEach(p => {
+                    webcamCtx.beginPath();
+                    webcamCtx.arc(p.x * webcamCanvas.width, p.y * webcamCanvas.height, 3, 0, Math.PI * 2);
+                    webcamCtx.fill();
                 });
 
-                // Compute Touchless Steering Wheel Angle if BOTH hands detected
-                if (leftHandPos && rightHandPos) {
-                    // Calculate angle between left and right hands relative to horizontal axis
-                    const dy = rightHandPos.y - leftHandPos.y;
-                    const dx = rightHandPos.x - leftHandPos.x;
-                    let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+                const wristY = landmarks[0].y; // 0.0 (top) to 1.0 (bottom)
+                const wristX = 1 - landmarks[0].x; // Mirrored X
 
-                    // Clamp & Smooth steering angle (-45 deg to +45 deg max)
-                    steerAngle = Math.max(-45, Math.min(45, angleDeg));
-                } else {
-                    steerAngle *= 0.8; // Return steering to center
+                // 1. Check FIST (PAUSE / STOP)
+                if (isFist(landmarks)) {
+                    isPaused = true;
+                    autoScrollSpeed = 0;
+                    gestureText.innerText = "✊ PAUSED / STOPPED";
+                    gestureBadge.className = "flex items-center gap-2 bg-rose-950/90 border border-rose-700/60 px-3 py-1.5 rounded-xl font-mono text-xs text-rose-400";
+                }
+                // 2. Check INDEX POINTING (Laser Pointer or Next/Prev Slide)
+                else if (isIndexPointing(landmarks)) {
+                    isPaused = false;
+                    gestureText.innerText = "☝️ POINTING / LASER";
+                    gestureBadge.className = "flex items-center gap-2 bg-indigo-950/90 border border-indigo-700/60 px-3 py-1.5 rounded-xl font-mono text-xs text-indigo-300";
+
+                    // Slide Swipe Gestures (Cooldown 1.2s)
+                    const now = Date.now();
+                    if (now - lastSwipeTime > 1200 && currentMode === 'presentation') {
+                        if (wristX > 0.75) {
+                            // Pointing Right -> Next Slide
+                            currentSlideIndex = Math.min(presentationSlides.length - 1, currentSlideIndex + 1);
+                            renderSlide();
+                            lastSwipeTime = now;
+                        } else if (wristX < 0.25) {
+                            // Pointing Left -> Prev Slide
+                            currentSlideIndex = Math.max(0, currentSlideIndex - 1);
+                            renderSlide();
+                            lastSwipeTime = now;
+                        }
+                    }
+
+                    // Render Laser Pointer in Presentation Mode
+                    if (currentMode === 'presentation') {
+                        const indexTip = landmarks[8];
+                        const laserX = (1 - indexTip.x) * airCanvas.width;
+                        const laserY = indexTip.y * airCanvas.height;
+                        
+                        laserPointer.style.left = `${laserX}px`;
+                        laserPointer.style.top = `${laserY}px`;
+                        laserPointer.classList.remove('hidden');
+                    }
+                }
+                // 3. Check PINCH (Air Highlighter)
+                else if (isPinch(landmarks) && currentMode === 'presentation') {
+                    isPaused = false;
+                    gestureText.innerText = "👌 AIR HIGHLIGHTER";
+                    gestureBadge.className = "flex items-center gap-2 bg-amber-950/90 border border-amber-700/60 px-3 py-1.5 rounded-xl font-mono text-xs text-amber-300";
+
+                    const indexTip = landmarks[8];
+                    const drawX = (1 - indexTip.x) * airCanvas.width;
+                    const drawY = indexTip.y * airCanvas.height;
+
+                    if (prevPinchPos) {
+                        airCtx.beginPath();
+                        airCtx.moveTo(prevPinchPos.x, prevPinchPos.y);
+                        airCtx.lineTo(drawX, drawY);
+                        airCtx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
+                        airCtx.lineWidth = 6;
+                        airCtx.lineCap = 'round';
+                        airCtx.stroke();
+                    }
+                    prevPinchPos = { x: drawX, y: drawY };
+                }
+                // 4. OPEN PALM (Spatial Height Speed Control)
+                else {
+                    isPaused = false;
+                    prevPinchPos = null;
+
+                    // Hand height (wristY): Top of camera (0.2) = Max Speed, Bottom (0.8) = Min/Zero Speed
+                    const normalizedHeight = Math.max(0, Math.min(1, (0.85 - wristY) / 0.65));
+                    autoScrollSpeed = Math.pow(normalizedHeight, 1.8) * 4.5; // Exponential speed curve
+
+                    gestureText.innerText = `🖐️ SCROLL SPEED (${autoScrollSpeed.toFixed(1)}x)`;
+                    gestureBadge.className = "flex items-center gap-2 bg-cyan-950/90 border border-cyan-700/60 px-3 py-1.5 rounded-xl font-mono text-xs text-cyan-300";
                 }
             } else {
-                steerAngle *= 0.8;
+                gestureText.innerText = "Mencari Tangan...";
+                gestureBadge.className = "flex items-center gap-2 bg-slate-900/90 border border-slate-700/60 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-400";
+                autoScrollSpeed = 0;
             }
+
+            webcamCtx.restore();
+
+            // Update UI Speed Indicators
+            const barHeightPct = Math.min(100, (autoScrollSpeed / 4.5) * 100);
+            speedLevelBar.style.height = `${barHeightPct}%`;
+            speedValText.innerText = `SPD: ${autoScrollSpeed.toFixed(1)}x`;
         });
 
-        // --- MAIN ENGINE TICKER LOOP ---
-        function mainLoop(timestamp) {
-            // Calculate FPS
-            const delta = timestamp - lastFrameTime;
-            lastFrameTime = timestamp;
-            fps = Math.round(1000 / delta);
-            if (fps) document.getElementById('fpsCounter').innerText = `FPS: ${fps}`;
-
-            if (gameActive) {
-                updateGame();
-                render();
+        // --- ANIMATION / SCROLLING TICKER LOOP ---
+        function ticker() {
+            if (currentMode === 'prompter' && !isPaused && autoScrollSpeed > 0.05) {
+                teleprompterContainer.scrollTop += autoScrollSpeed * 1.5;
             }
-
-            requestAnimationFrame(mainLoop);
+            requestAnimationFrame(ticker);
         }
+        requestAnimationFrame(ticker);
 
-        // --- START GAME BUTTON & CAMERA INIT ---
-        document.getElementById('btnStartGame').addEventListener('click', () => {
-            initAudioEngine();
-            document.getElementById('startPrompt').classList.add('opacity-0', 'pointer-events-none');
-            gameActive = true;
-
-            const camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    await hands.send({ image: videoElement });
-                },
-                width: 1280,
-                height: 720
-            });
-
-            camera.start().catch(err => {
-                const statusText = document.getElementById('statusText');
-                statusText.innerText = "Gagal Mengakses Kamera: " + err;
-                statusText.className = "mt-2 text-xs font-mono font-semibold text-rose-400";
-            });
+        // --- INIT CAMERA ---
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
         });
 
-        // Start Loop
-        requestAnimationFrame(mainLoop);
+        camera.start().catch(err => {
+            gestureText.innerText = "Error Kamera: " + err;
+            gestureBadge.className = "flex items-center gap-2 bg-rose-950/90 text-rose-400 font-mono text-xs";
+        });
     </script>
 </body>
 </html>
-```
-
-### 🏎️ Panduan Bermain Cyberpunk Air-Racer:
-1. **Virtual Steering Wheel (Dua Kepalan Tangan ✊✊):** Posisikan kedua tanganmu di udara seolah-olah memegang setir mobil. Putar kemudi melayang ke kanan atau ke kiri untuk membelokkan kendaraan.
-2. **Gas / Akselerasi (Tangan Kanan Buka 🖐️):** Buka telapak tangan kananmu untuk menekan pedal gas hingga kecepatan 240 KM/H.
-3. **Rem / Drift (Tangan Kiri Buka 🖐️):** Buka telapak tangan kiri untuk memperlambat laju atau melakukan manuver *drift*.
-4. **Nitro Boost (Jempol Kanan Naik 👍):** Angkat jempol kananmu (*Thumbs Up*) saat Nitro Gauge terisi 100% untuk memicu dorongan kecepatan Warp hingga **360 KM/H** disertai efek visual & audio khusus!
