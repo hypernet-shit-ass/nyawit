@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyberpunk Spatial Fluid & Particle Sculptor</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- MediaPipe Hands & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020617;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #webcam {
+            transform: scaleX(-1);
+            display: none;
+        }
+
+        #output_canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+
+        .glow-cyan {
+            text-shadow: 0 0 12px rgba(6, 182, 212, 0.8);
+        }
+
+        .glow-fuchsia {
+            text-shadow: 0 0 12px rgba(217, 70, 239, 0.8);
+        }
+    </style>
+</head>
+<body class="text-slate-100">
+
+    <!-- Kamera Video Sumber (Tersembunyi) -->
+    <video id="webcam" playsinline></video>
+
+    <!-- Kanvas Render Simulasi Physics & Visual AI -->
+    <canvas id="output_canvas"></canvas>
+
+    <!-- UI Overlay Head-Up Display (HUD) -->
+    <div class="fixed top-4 left-4 right-4 pointer-events-none flex justify-between items-start z-10">
+        <div class="glass-panel rounded-2xl p-4 shadow-2xl max-w-md border border-cyan-500/40">
+            <h1 class="text-xl font-black bg-gradient-to-r from-cyan-400 via-indigo-300 to-fuchsia-400 bg-clip-text text-transparent glow-cyan flex items-center gap-2">
+                ✨ SPATIAL FLUID SCULPTOR
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">Ciptakan & Kendalikan Energi Partikel Fluid Neon dengan Tanganmu</p>
+            <div id="statusText" class="mt-2 text-xs font-mono font-semibold text-amber-400 flex items-center gap-1.5">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                Inisialisasi Sensor Tangan & AI Spatial Loop...
+            </div>
+        </div>
+
+        <!-- Telemetri Partikel & Telemetri Tangan -->
+        <div class="glass-panel rounded-2xl p-3 shadow-2xl text-xs font-mono space-y-1 border border-indigo-500/30">
+            <div class="text-cyan-400 font-bold border-b border-cyan-500/20 pb-1 mb-1">TELEMETRI PARTIKEL</div>
+            <div>Jumlah Partikel: <span id="particleCountVal" class="text-cyan-300 font-bold">1200</span></div>
+            <div>Mode Gaya: <span id="forceModeVal" class="text-fuchsia-400 font-bold">FLOW</span></div>
+            <div>Gaya Gravitasi: <span id="gravityVal" class="text-emerald-400 font-bold">NORMAL</span></div>
+        </div>
+    </div>
+
+    <!-- UI Panel Petunjuk Gestur Bawah -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-10 w-[95%] max-w-2xl pointer-events-none">
+        <div class="glass-panel rounded-2xl p-3 shadow-2xl text-center text-xs font-mono text-cyan-300 border border-cyan-500/30 flex justify-around items-center gap-2 flex-wrap">
+            <div>✊ <span class="text-white font-bold">Kepal Tangan:</span> Black Hole Gravity</div>
+            <div>🖐️ <span class="text-white font-bold">Buka Telapak:</span> Repulsion Shockwave</div>
+            <div>☝️ <span class="text-white font-bold">Telunjuk:</span> Laser / Petir Plasma</div>
+            <div>👌 <span class="text-white font-bold">Cubitan Dua Tangan:</span> Ubah Spektrum Warna</div>
+        </div>
+    </div>
+
+    <script>
+        // --- SETUP KANVAS & ELEMEN ---
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const ctx = canvasElement.getContext('2d');
+        const statusText = document.getElementById('statusText');
+
+        function resizeCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- WEB AUDIO API SYNTHESIZER ---
+        let audioCtx = null;
+        let mainOsc = null;
+        let mainGain = null;
+
+        function initAudio() {
+            if (audioCtx) return;
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            mainOsc = audioCtx.createOscillator();
+            mainGain = audioCtx.createGain();
+
+            mainOsc.type = 'sawtooth';
+            mainOsc.frequency.setValueAtTime(110, audioCtx.currentTime);
+            mainGain.gain.setValueAtTime(0, audioCtx.currentTime);
+
+            mainOsc.connect(mainGain);
+            mainGain.connect(audioCtx.destination);
+            mainOsc.start();
+        }
+
+        function updateSpatialAudio(freq, volume) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const safeFreq = Math.max(60, Math.min(880, freq));
+            const safeVol = Math.max(0, Math.min(0.15, volume));
+
+            mainOsc.frequency.setTargetAtTime(safeFreq, audioCtx.currentTime, 0.05);
+            mainGain.gain.setTargetAtTime(safeVol, audioCtx.currentTime, 0.05);
+        }
+
+        // --- SIMULASI FISIKA PARTIKEL NEON ---
+        const MAX_PARTICLES = 1200;
+        let particles = [];
+        let colorHueOffset = 180; // Default Cyan
+
+        class Particle {
+            constructor(x, y) {
+                this.x = x || Math.random() * canvasElement.width;
+                this.y = y || Math.random() * canvasElement.height;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.radius = Math.random() * 2.5 + 1.2;
+                this.baseHue = colorHueOffset + Math.random() * 40 - 20;
+                this.life = Math.random() * 100 + 100;
+                this.maxLife = this.life;
+                this.friction = 0.96;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+
+                // Batas Layar Memantul
+                if (this.x < 0) { this.x = 0; this.vx *= -1; }
+                if (this.x > canvasElement.width) { this.x = canvasElement.width; this.vx *= -1; }
+                if (this.y < 0) { this.y = 0; this.vy *= -1; }
+                if (this.y > canvasElement.height) { this.y = canvasElement.height; this.vy *= -1; }
+
+                this.life -= 0.2;
+                if (this.life <= 0) {
+                    this.reset();
+                }
+            }
+
+            reset() {
+                this.x = Math.random() * canvasElement.width;
+                this.y = Math.random() * canvasElement.height;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.life = Math.random() * 100 + 100;
+                this.baseHue = colorHueOffset + Math.random() * 40 - 20;
+            }
+
+            draw() {
+                const alpha = Math.max(0, this.life / this.maxLife);
+                const currentHue = (this.baseHue + colorHueOffset) % 360;
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${currentHue}, 90%, 65%, ${alpha})`;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = `hsla(${currentHue}, 100%, 50%, 0.8)`;
+                ctx.fill();
+                ctx.shadowBlur = 0; // Reset Shadow
+            }
+        }
+
+        // Inisialisasi Kumpulan Partikel
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+            particles.push(new Particle());
+        }
+
+        // --- HELPER METRIK GESTUR TANGAN ---
+        function getDistance(p1, p2) {
+            return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        }
+
+        function isHandFist(landmarks) {
+            const wrist = landmarks[0];
+            const tips = [8, 12, 16, 20];
+            const mcps = [5, 9, 13, 17];
+            let curled = 0;
+            for (let i = 0; i < tips.length; i++) {
+                if (getDistance(landmarks[tips[i]], wrist) < getDistance(landmarks[mcps[i]], wrist)) {
+                    curled++;
+                }
+            }
+            return curled >= 3;
+        }
+
+        function isOpenPalm(landmarks) {
+            const wrist = landmarks[0];
+            const tips = [8, 12, 16, 20];
+            const mcps = [5, 9, 13, 17];
+            let extended = 0;
+            for (let i = 0; i < tips.length; i++) {
+                if (getDistance(landmarks[tips[i]], wrist) > getDistance(landmarks[mcps[i]], wrist)) {
+                    extended++;
+                }
+            }
+            return extended >= 4;
+        }
+
+        function isPinch(landmarks) {
+            return getDistance(landmarks[4], landmarks[8]) < 0.08;
+        }
+
+        // --- RENDER & SIMULATION LOOP ---
+        function renderScene(landmarksList) {
+            ctx.save();
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // 1. Render Video Kamera Background (Mirrored)
+            ctx.save();
+            ctx.translate(canvasElement.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            ctx.restore();
+
+            // Overlay Gelap Semi-Transparan
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.78)';
+            ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // 2. Deteksi Gestur & Titik Gravitasi Tangan
+            let forceCenters = []; // { x, y, type: 'ATTRACT' | 'REPELS' | 'SPAWN', strength }
+            let indexTips = [];
+            let pinches = [];
+
+            if (landmarksList && landmarksList.length > 0) {
+                initAudio();
+
+                landmarksList.forEach((landmarks, hIdx) => {
+                    const w = canvasElement.width;
+                    const h = canvasElement.height;
+
+                    // Koordinat Pixel Tangan (Mirrored)
+                    const palmCenter = { x: (1 - landmarks[9].x) * w, y: landmarks[9].y * h };
+                    const indexTip = { x: (1 - landmarks[8].x) * w, y: landmarks[8].y * h };
+                    const wrist = { x: (1 - landmarks[0].x) * w, y: landmarks[0].y * h };
+
+                    indexTips.push(indexTip);
+
+                    const fist = isHandFist(landmarks);
+                    const palm = isOpenPalm(landmarks);
+                    const pinched = isPinch(landmarks);
+
+                    if (pinched) {
+                        pinches.push(indexTip);
+                    }
+
+                    if (fist) {
+                        // Black Hole Gravitasi (Kepal Tangan)
+                        forceCenters.push({ x: palmCenter.x, y: palmCenter.y, type: 'ATTRACT', strength: 12 });
+
+                        // Visual Aura Black Hole
+                        ctx.beginPath();
+                        ctx.arc(palmCenter.x, palmCenter.y, 45, 0, Math.PI * 2);
+                        ctx.strokeStyle = '#d946ef';
+                        ctx.lineWidth = 3;
+                        ctx.setLineDash([6, 6]);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    } else if (palm) {
+                        // Repulsion Shockwave (Buka Telapak Tangan)
+                        forceCenters.push({ x: palmCenter.x, y: palmCenter.y, type: 'REPEL', strength: 16 });
+
+                        // Visual Shockwave Ring
+                        ctx.beginPath();
+                        ctx.arc(palmCenter.x, palmCenter.y, 65, 0, Math.PI * 2);
+                        ctx.strokeStyle = '#06b6d4';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    } else {
+                        // Mode Normal / Telunjuk Spawner Partikel
+                        forceCenters.push({ x: indexTip.x, y: indexTip.y, type: 'SPAWN', strength: 4 });
+                    }
+
+                    // Draw Skeleton Line Tangan Hologram
+                    ctx.beginPath();
+                    ctx.moveTo(wrist.x, wrist.y);
+                    ctx.lineTo(palmCenter.x, palmCenter.y);
+                    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // Ujung Jari Glowing Node
+                    ctx.beginPath();
+                    ctx.arc(indexTip.x, indexTip.y, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = fist ? '#d946ef' : (palm ? '#06b6d4' : '#f59e0b');
+                    ctx.fill();
+                });
+            }
+
+            // 3. EFUSI PETIR PLASMA BILA DUA JARI TELUNJUK BERDEKATAN
+            if (indexTips.length >= 2) {
+                const p1 = indexTips[0];
+                const p2 = indexTips[1];
+                const dist = getDistance(p1, p2);
+
+                if (dist < 300) {
+                    // Gambar Petir Plasma Menyala
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    
+                    const midX = (p1.x + p2.x) / 2 + (Math.random() - 0.5) * 40;
+                    const midY = (p1.y + p2.y) / 2 + (Math.random() - 0.5) * 40;
+                    
+                    ctx.lineTo(midX, midY);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = '#f43f5e';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    // Memicu Gelombang Partikel Baru
+                    for (let k = 0; k < 4; k++) {
+                        const p = particles[Math.floor(Math.random() * particles.length)];
+                        p.x = midX;
+                        p.y = midY;
+                        p.vx = (Math.random() - 0.5) * 12;
+                        p.vy = (Math.random() - 0.5) * 12;
+                    }
+
+                    updateSpatialAudio(440 + (300 - dist) * 1.5, 0.12);
+                } else {
+                    updateSpatialAudio(120, 0);
+                }
+            } else if (forceCenters.length === 0) {
+                updateSpatialAudio(0, 0);
+            }
+
+            // 4. INTERAKSI SPECTRUM WARNA BILA DUA TANGAN CUBIT
+            if (pinches.length >= 2) {
+                const distPinch = getDistance(pinches[0], pinches[1]);
+                colorHueOffset = (distPinch * 0.5) % 360;
+                document.getElementById('forceModeVal').innerText = 'PALETTE SHIFT';
+            } else if (forceCenters.length > 0) {
+                document.getElementById('forceModeVal').innerText = forceCenters[0].type;
+            } else {
+                document.getElementById('forceModeVal').innerText = 'FLOW';
+            }
+
+            // 5. UPDATE & SIMULASI ATURAN FISIKA PARTIKEL
+            particles.forEach(p => {
+                forceCenters.forEach(fc => {
+                    const dx = fc.x - p.x;
+                    const dy = fc.y - p.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if (dist < 350 && dist > 1) {
+                        const force = (350 - dist) / 350;
+
+                        if (fc.type === 'ATTRACT') {
+                            // Tarikan Gravitasi Black Hole
+                            p.vx += (dx / dist) * force * fc.strength * 0.3;
+                            p.vy += (dy / dist) * force * fc.strength * 0.3;
+                        } else if (fc.type === 'REPEL') {
+                            // Dorongan Angin / Shockwave
+                            p.vx -= (dx / dist) * force * fc.strength * 0.4;
+                            p.vy -= (dy / dist) * force * fc.strength * 0.4;
+                        } else if (fc.type === 'SPAWN' && dist < 80) {
+                            // Swirl Orbital di Sekitar Jari
+                            p.vx += (-dy / dist) * force * 2;
+                            p.vy += (dx / dist) * force * 2;
+                        }
+                    }
+                });
+
+                p.update();
+                p.draw();
+            });
+
+            ctx.restore();
+        }
+
+        // --- MEDIAPIPE HANDS INITIALIZATION ---
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.65
+        });
+
+        hands.onResults((results) => {
+            statusText.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Simulasi Spatial Aktif (${results.multiHandLandmarks ? results.multiHandLandmarks.length : 0} Tangan)`;
+            statusText.className = "mt-2 text-xs font-mono font-semibold text-emerald-400 flex items-center gap-1.5";
+
+            renderScene(results.multiHandLandmarks);
+        });
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 1280,
+            height: 720
+        });
+
+        camera.start().catch(err => {
+            statusText.innerText = "Gagal Mengakses Kamera: " + err;
+            statusText.className = "mt-2 text-xs font-mono font-semibold text-rose-400";
+        });
+    </script>
+</body>
+</html>
