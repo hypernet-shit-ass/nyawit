@@ -1,115 +1,305 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>NFC & QR Reader</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    :root {
-      --bg: #0d1117;
-      --card: #161b22;
-      --border: #30363d;
-      --text: #c9d1d9;
-      --muted: #8b949e;
-      --accent: #58a6ff;
-      --green: #3fb950;
-      --red: #f85149;
-      --yellow: #d29922;
-    }
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 16px;
-      padding-bottom: 40px;
-    }
-    h1 { font-size: 1.4rem; margin: 0 0 4px; }
-    .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .card h2 { font-size: 1rem; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
-    button {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-      transition: opacity 0.2s;
-    }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    button.secondary { background: #21262d; border: 1px solid var(--border); color: var(--text); }
-    .status {
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      background: #0d1117;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      word-break: break-word;
-    }
-    .status.ok { color: var(--green); border-color: #238636; }
-    .status.err { color: var(--red); border-color: #da3633; }
-    .status.warn { color: var(--yellow); border-color: #9e6a03; }
-    .result {
-      background: #0d1117;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      font-family: ui-monospace, "SF Mono", Menlo, monospace;
-      font-size: 0.8rem;
-      white-space: pre-wrap;
-      word-break: break-word;
-      max-height: 300px;
-      overflow-y: auto;
-      margin-top: 12px;
-      display: none;
-    }
-    .result.show { display: block; }
-    .result .label { color: var(--accent); }
-    #qr-reader {
-      width: 100%;
-      border-radius: 8px;
-      overflow: hidden;
-      margin-top: 12px;
-      display: none;
-      border: 1px solid var(--border);
-    }
-    #qr-reader.show { display: block; }
-    .badge {
-      display: inline-block;
-      font-size: 0.7rem;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #21262d;
-      color: var(--muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .row { display: flex; gap: 8px; }
-    .row button { flex: 1; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>NFC & QR Playground 🎮</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+    --pink: #ff7eb6;
+  }
+  body.theme-neon {
+    --bg: #0a0014; --card: #15002b; --border: #6a00ff;
+    --text: #e0d4ff; --muted: #a78bfa;
+    --accent: #00ffff; --green: #39ff14; --red: #ff0055; --yellow: #ffe600;
+  }
+  body.theme-retro {
+    --bg: #2b1d0e; --card: #3d2b15; --border: #8b5a2b;
+    --text: #f5e6c8; --muted: #c8a878;
+    --accent: #ffb347; --green: #8fbc8f; --red: #cd5c5c; --yellow: #ffd700;
+  }
+  body.theme-sakura {
+    --bg: #1a0f14; --card: #2a1a22; --border: #5a3545;
+    --text: #ffe4ec; --muted: #d8a8b8;
+    --accent: #ff9ec4; --green: #a8e6cf; --red: #ff6b9d; --yellow: #ffd3a5;
+  }
+  body.theme-cyberpunk {
+    --bg: #0a0a12; --card: #12121f; --border: #2a2a4a;
+    --text: #e0e0ff; --muted: #8888aa;
+    --accent: #ff00ff; --green: #00ffaa; --red: #ff0055; --yellow: #ffff00;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 12px 12px 40px;
+    transition: background 0.3s, color 0.3s;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 0.8rem; margin-bottom: 14px; }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    margin-bottom: 14px;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeIn 0.25s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    transition: background 0.3s, border 0.3s;
+  }
+  .card h2 { font-size: 0.95rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  button {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.secondary { background: var(--card); border: 1px solid var(--border); color: var(--text); }
+  button.danger { background: var(--red); color: #fff; }
+  button.green { background: var(--green); color: var(--bg); }
+
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+
+  .status {
+    margin-top: 10px; padding: 9px 11px; border-radius: 8px;
+    font-size: 0.8rem; background: var(--bg);
+    border: 1px solid var(--border); color: var(--muted);
+    word-break: break-word;
+  }
+  .status.ok { color: var(--green); border-color: var(--green); }
+  .status.err { color: var(--red); border-color: var(--red); }
+  .status.warn { color: var(--yellow); border-color: var(--yellow); }
+
+  .result {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.75rem; white-space: pre-wrap;
+    word-break: break-word; max-height: 260px; overflow-y: auto;
+    margin-top: 10px; display: none;
+  }
+  .result.show { display: block; }
+  .result .label { color: var(--accent); }
+
+  .badge {
+    display: inline-block; font-size: 0.65rem;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--border); color: var(--text);
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  #qr-reader {
+    width: 100%; border-radius: 8px; overflow: hidden;
+    margin-top: 10px; display: none; border: 1px solid var(--border);
+  }
+  #qr-reader.show { display: block; }
+
+  /* Soundboard pads */
+  .pads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .pad {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1.6rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none;
+    transition: transform 0.1s, background 0.15s;
+  }
+  .pad:active, .pad.flash { transform: scale(0.92); background: var(--accent); }
+
+  /* Fortune / Aura */
+  .fortune-box {
+    text-align: center; padding: 22px 12px;
+    border-radius: 12px; background: var(--bg);
+    border: 1px dashed var(--border); margin-top: 10px;
+    min-height: 90px;
+    display: flex; flex-direction: column; justify-content: center;
+    animation: pop 0.4s;
+  }
+  @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .fortune-box .emoji { font-size: 2.6rem; }
+  .fortune-box .big { font-size: 1rem; font-weight: 700; margin-top: 6px; }
+  .fortune-box .small { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+  .aura-swatch {
+    width: 64px; height: 64px; border-radius: 50%;
+    margin: 0 auto 8px; border: 3px solid rgba(255,255,255,0.15);
+    box-shadow: 0 0 24px currentColor;
+  }
+
+  /* Typewriter */
+  .typewriter {
+    min-height: 60px; padding: 12px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    font-family: ui-monospace, monospace; font-size: 0.9rem;
+    margin-top: 10px; white-space: pre-wrap; word-break: break-word;
+  }
+  .cursor::after { content: '▌'; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Game Tap */
+  .score-big {
+    text-align: center; font-size: 2.4rem; font-weight: 800;
+    color: var(--accent); margin: 6px 0;
+  }
+  .timer-bar {
+    height: 8px; background: var(--bg); border-radius: 4px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .timer-fill {
+    height: 100%; background: var(--green); width: 100%;
+    transition: width 0.1s linear;
+  }
+
+  /* Memory grid */
+  .memory-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin-top: 10px;
+  }
+  .mem-card {
+    aspect-ratio: 1; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mem-card.matched { background: var(--green); color: var(--bg); }
+  .mem-card.flipped { background: var(--accent); color: var(--bg); }
+
+  /* Treasure */
+  .treasure-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .treasure-item {
+    padding: 10px; border-radius: 8px; background: var(--bg);
+    border: 1px solid var(--border); font-size: 0.85rem;
+  }
+  .treasure-item.found { border-color: var(--green); color: var(--green); }
+  .progress {
+    height: 8px; background: var(--bg); border-radius: 4px;
+    overflow: hidden; margin-top: 10px;
+  }
+  .progress > div { height: 100%; background: var(--accent); transition: width 0.4s; }
+
+  /* Setting */
+  .setting-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  .setting-row:last-child { border-bottom: none; }
+  .switch {
+    position: relative; width: 46px; height: 26px;
+    background: var(--border); border-radius: 999px;
+    cursor: pointer; transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .switch.on { background: var(--green); }
+  .switch::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; transition: transform 0.2s;
+  }
+  .switch.on::after { transform: translateX(20px); }
+
+  .theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+  .theme-btn {
+    padding: 12px; border-radius: 8px; border: 2px solid var(--border);
+    background: var(--card); color: var(--text);
+    font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  }
+  .theme-btn.active { border-color: var(--accent); }
+
+  /* Confetti canvas */
+  #confetti {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  }
+
+  .flash-overlay {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+    opacity: 0; z-index: 9998; transition: opacity 0.3s;
+  }
+  .flash-overlay.on { opacity: 0.6; }
+</style>
 </head>
 <body>
 
-  <h1>📡 NFC & QR Reader</h1>
-  <p class="sub">Tempel kartu NFC ke HP, atau scan QR kalau NFC tidak berfungsi.</p>
+<h1>🎮 NFC & QR Playground</h1>
+<p class="sub">Tempel kartu NFC atau scan QR — banyak mode seru!</p>
 
-  <!-- NFC CARD -->
+<!-- TABS -->
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="reader">📡 Reader</div>
+  <div class="tab" data-tab="sound">🎵 Soundboard</div>
+  <div class="tab" data-tab="fortune">🔮 Peramal</div>
+  <div class="tab" data-tab="aura">✨ Aura</div>
+  <div class="tab" data-tab="secret">🔐 Secret</div>
+  <div class="tab" data-tab="magic">🪄 Magic</div>
+  <div class="tab" data-tab="tapgame">👆 Tap Game</div>
+  <div class="tab" data-tab="memory">🧠 Memory</div>
+  <div class="tab" data-tab="treasure">🗺️ Treasure</div>
+  <div class="tab" data-tab="setting">⚙️ Setting</div>
+</div>
+
+<!-- ========== READER ========== -->
+<div class="panel active" id="panel-reader">
   <div class="card">
     <h2>🔲 NFC <span class="badge" id="nfc-support">Cek...</span></h2>
     <button id="nfc-btn" disabled>Mulai Scan NFC</button>
@@ -117,7 +307,6 @@
     <div class="result" id="nfc-result"></div>
   </div>
 
-  <!-- QR CARD -->
   <div class="card">
     <h2>🔳 QR Code <span class="badge">Cadangan</span></h2>
     <div class="row">
@@ -128,181 +317,235 @@
     <div class="status" id="qr-status">Kamera belum aktif.</div>
     <div class="result" id="qr-result"></div>
   </div>
+</div>
+
+<!-- ========== SOUNDBOARD ========== -->
+<div class="panel" id="panel-sound">
+  <div class="card">
+    <h2>🎵 Soundboard NFC</h2>
+    <p class="sub" style="margin-bottom:8px">Tempel kartu NFC (atau tap pad) untuk mainkan nada. Tiap UID kartu = nada berbeda.</p>
+    <button id="sound-nfc-btn" class="secondary">Aktifkan NFC untuk Soundboard</button>
+    <div class="status" id="sound-status">NFC belum aktif untuk soundboard.</div>
+    <div class="pads" id="pads"></div>
+  </div>
+</div>
+
+<!-- ========== FORTUNE ========== -->
+<div class="panel" id="panel-fortune">
+  <div class="card">
+    <h2>🔮 Peramal Ajaib</h2>
+    <p class="sub" style="margin-bottom:8px">Scan NFC/QR atau tekan tombol untuk meramal.</p>
+    <div class="row">
+      <button id="fortune-nfc-btn" class="secondary">Scan NFC</button>
+      <button id="fortune-qr-btn" class="secondary">Scan QR</button>
+    </div>
+    <div id="fortune-qr-reader"></div>
+    <div class="status" id="fortune-status">Belum ada aktivitas.</div>
+    <button id="fortune-btn" style="margin-top:10px">🎲 Ramal Sekarang</button>
+    <div class="fortune-box" id="fortune-box" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ========== AURA ========== -->
+<div class="panel" id="panel-aura">
+  <div class="card">
+    <h2>✨ Aura Reader</h2>
+    <p class="sub" style="margin-bottom:8px">Tempel kartu NFC / scan QR untuk membaca "aura" kartu.</p>
+    <div class="row">
+      <button id="aura-nfc-btn" class="secondary">Scan NFC</button>
+      <button id="aura-qr-btn" class="secondary">Scan QR</button>
+    </div>
+    <div id="aura-qr-reader"></div>
+    <div class="status" id="aura-status">Belum ada aktivitas.</div>
+    <div class="fortune-box" id="aura-box" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ========== SECRET ========== -->
+<div class="panel" id="panel-secret">
+  <div class="card">
+    <h2>🔐 Secret Message</h2>
+    <p class="sub" style="margin-bottom:8px">Simpan pesan rahasia. Scan kartu NFC/QR untuk membuka pesan.</p>
+    <button id="secret-setup-btn" class="secondary">Scan NFC untuk daftarkan kartu</button>
+    <div class="status" id="secret-status">Belum ada kartu terdaftar.</div>
+    <textarea id="secret-text" placeholder="Tulis pesan rahasiamu di sini..." style="width:100%;margin-top:10px;padding:10px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:0.9rem;min-height:70px;resize:vertical;font-family:inherit"></textarea>
+    <button id="secret-save-btn" style="margin-top:8px">Simpan Pesan</button>
+    <div class="row" style="margin-top:8px">
+      <button id="secret-open-nfc" class="secondary">Buka via NFC</button>
+      <button id="secret-reset" class="danger">Reset</button>
+    </div>
+    <div class="typewriter" id="secret-output" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ========== MAGIC ========== -->
+<div class="panel" id="panel-magic">
+  <div class="card">
+    <h2>🪄 Magic Trick</h2>
+    <p class="sub" style="margin-bottom:8px">Tempel kartu NFC kapan saja untuk efek kejutan: suara, kilat, pesan random.</p>
+    <button id="magic-nfc-btn" class="secondary">Aktifkan Magic NFC</button>
+    <div class="status" id="magic-status">Magic belum aktif.</div>
+    <div class="fortune-box" id="magic-box" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ========== TAP GAME ========== -->
+<div class="panel" id="panel-tapgame">
+  <div class="card">
+    <h2>👆 Tap the Card</h2>
+    <p class="sub" style="margin-bottom:8px">Tempel kartu NFC sebanyak mungkin dalam 30 detik!</p>
+    <div class="score-big" id="tap-score">0</div>
+    <div class="status" id="tap-status">Tekan mulai untuk bermain.</div>
+    <div class="timer-bar"><div class="timer-fill" id="tap-timer"></div></div>
+    <button id="tap-start-btn" style="margin-top:10px">Mulai Game</button>
+    <div class="status" id="tap-high" style="margin-top:8px">🏆 High score: 0</div>
+  </div>
+</div>
+
+<!-- ========== MEMORY ========== -->
+<div class="panel" id="panel-memory">
+  <div class="card">
+    <h2>🧠 Memory Card</h2>
+    <p class="sub" style="margin-bottom:8px">Cocokkan pasangan emoji. Klik kartu untuk membalik.</p>
+    <div class="memory-grid" id="memory-grid"></div>
+    <div class="status" id="memory-status">Tekan mulai untuk bermain.</div>
+    <button id="memory-start-btn" style="margin-top:10px">Mulai / Reset</button>
+  </div>
+</div>
+
+<!-- ========== TREASURE ========== -->
+<div class="panel" id="panel-treasure">
+  <div class="card">
+    <h2>🗺️ Treasure Hunt</h2>
+    <p class="sub" style="margin-bottom:8px">Daftarkan 3 kartu NFC sebagai "harta". Tempel satu per satu untuk membuka.</p>
+    <button id="treasure-register-btn" class="secondary">Daftarkan Kartu (Scan NFC)</button>
+    <div class="treasure-list" id="treasure-list"></div>
+    <div class="progress"><div id="treasure-progress" style="width:0%"></div></div>
+    <div class="status" id="treasure-status">Belum ada harta terdaftar.</div>
+    <div class="row" style="margin-top:10px">
+      <button id="treasure-play-btn" class="green">Mulai Berburu</button>
+      <button id="treasure-reset-btn" class="danger">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SETTING ========== -->
+<div class="panel" id="panel-setting">
+  <div class="card">
+    <h2>⚙️ Pengaturan</h2>
+    <div class="setting-row">
+      <span>🔊 Suara</span>
+      <div class="switch on" id="sw-sound"></div>
+    </div>
+    <div class="setting-row">
+      <span>📳 Getar</span>
+      <div class="switch on" id="sw-vibrate"></div>
+    </div>
+    <div class="setting-row">
+      <span>🌈 Efek Kilat</span>
+      <div class="switch on" id="sw-flash"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🎨 Tema</h2>
+    <div class="theme-grid" id="theme-grid">
+      <button class="theme-btn active" data-theme="default">🌙 Default</button>
+      <button class="theme-btn" data-theme="theme-neon">💜 Neon</button>
+      <button class="theme-btn" data-theme="theme-retro">🧡 Retro</button>
+      <button class="theme-btn" data-theme="theme-sakura">🌸 Sakura</button>
+      <button class="theme-btn" data-theme="theme-cyberpunk">⚡ Cyberpunk</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🗑️ Data</h2>
+    <button id="reset-all" class="danger">Hapus Semua Data (localStorage)</button>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+<div class="flash-overlay" id="flash-overlay"></div>
 
 <script>
 (function () {
-  // ============ UTIL ============
-  const $ = (id) => document.getElementById(id);
+  'use strict';
 
-  function showResult(el, content) {
-    el.classList.add('show');
-    el.innerHTML = content;
-  }
+  // ==================== UTIL ====================
+  const $ = id => document.getElementById(id);
+  const LS = {
+    get(k, def) { try { const v = localStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch { return def; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} }
+  };
 
   function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (c) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[c]);
+    return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   }
-
+  function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
   function formatBytes(bytes) {
     if (!bytes) return '0 B';
     return bytes.length + ' byte';
   }
 
-  // ============ NFC ============
-  const nfcBtn = $('nfc-btn');
-  const nfcStatus = $('nfc-status');
-  const nfcResult = $('nfc-result');
-  const nfcSupport = $('nfc-support');
+  // ==================== SETTINGS ====================
+  const settings = {
+    sound: LS.get('nfc_sound', true),
+    vibrate: LS.get('nfc_vibrate', true),
+    flash: LS.get('nfc_flash', true)
+  };
+  function saveSettings() { LS.set('nfc_sound', settings.sound); LS.set('nfc_vibrate', settings.vibrate); LS.set('nfc_flash', settings.flash); }
 
-  let nfcController = null;
-  let nfcScanning = false;
-
-  function setNfcStatus(msg, cls) {
-    nfcStatus.textContent = msg;
-    nfcStatus.className = 'status' + (cls ? ' ' + cls : '');
-  }
-
-  // Cek dukungan
-  if (!('NDEFReader' in window)) {
-    nfcSupport.textContent = 'Tidak didukung';
-    nfcSupport.style.color = 'var(--red)';
-    setNfcStatus('Browser ini tidak mendukung Web NFC. Gunakan Chrome di Android via HTTPS/localhost. Pakai QR sebagai cadangan.', 'err');
-    nfcBtn.disabled = true;
-  } else if (!window.isSecureContext) {
-    nfcSupport.textContent = 'Butuh HTTPS';
-    nfcSupport.style.color = 'var(--yellow)';
-    setNfcStatus('Web NFC hanya jalan di HTTPS atau localhost. Buka halaman ini via server HTTPS. Pakai QR sebagai cadangan.', 'warn');
-    nfcBtn.disabled = true;
-  } else {
-    nfcSupport.textContent = 'Siap';
-    nfcSupport.style.color = 'var(--green)';
-    setNfcStatus('NFC siap. Tekan tombol untuk mulai memindai.', 'ok');
-    nfcBtn.disabled = false;
-  }
-
-  function renderNfcRecord(record) {
-    let html = '';
-    try {
-      // record.recordType: 'text' | 'url' | 'absolute-url' | 'mime' | 'smart-poster' | 'empty' | 'unknown'
-      const type = record.recordType || 'unknown';
-      html += `<span class="label">Tipe:</span> ${escapeHtml(type)}\n`;
-
-      if (record.mediaType) {
-        html += `<span class="label">Media:</span> ${escapeHtml(record.mediaType)}\n`;
-      }
-
-      // Data text
-      if (record.data) {
-        if (type === 'text' && record.encoding) {
-          const decoder = new TextDecoder(record.encoding);
-          const text = decoder.decode(record.data);
-          html += `<span class="label">Teks:</span> ${escapeHtml(text)}\n`;
-        } else if (type === 'url' || type === 'absolute-url') {
-          const decoder = new TextDecoder();
-          const url = decoder.decode(record.data);
-          html += `<span class="label">URL:</span> ${escapeHtml(url)}\n`;
-        } else if (record.mediaType && record.mediaType.startsWith('text/')) {
-          const decoder = new TextDecoder();
-          html += `<span class="label">Data:</span> ${escapeHtml(decoder.decode(record.data))}\n`;
-        } else {
-          // Tampilkan hex ringkas
-          const bytes = new Uint8Array(record.data);
-          let hex = '';
-          const max = Math.min(bytes.length, 64);
-          for (let i = 0; i < max; i++) {
-            hex += bytes[i].toString(16).padStart(2, '0') + ' ';
-          }
-          if (bytes.length > max) hex += '...';
-          html += `<span class="label">Data (hex):</span> ${escapeHtml(hex)}\n`;
-          html += `<span class="label">Ukuran:</span> ${formatBytes(record.data)}\n`;
-        }
-      }
-    } catch (e) {
-      html += `<span class="label">Error baca record:</span> ${escapeHtml(e.message)}\n`;
-    }
-    return html;
-  }
-
-  function handleNdefReading(event) {
-    const { message, serialNumber } = event;
-    const time = new Date().toLocaleTimeString();
-
-    let html = `<span class="label">⏱ Waktu:</span> ${time}\n`;
-    html += `<span class="label">🔑 Serial:</span> ${escapeHtml(serialNumber || '-')}\n`;
-    html += `<span class="label">📦 Jumlah record:</span> ${message.records.length}\n\n`;
-
-    message.records.forEach((record, i) => {
-      html += `--- Record ${i + 1} ---\n`;
-      html += renderNfcRecord(record);
-      html += '\n';
-    });
-
-    showResult(nfcResult, html);
-    setNfcStatus('Kartu terbaca! Data ditampilkan di bawah.', 'ok');
-
-    // getar kalau didukung
-    if (navigator.vibrate) navigator.vibrate(80);
-  }
-
-  function handleNdefError(error) {
-    console.error(error);
-    if (error.name === 'NotAllowedError') {
-      setNfcStatus('Izin NFC ditolak. Aktifkan NFC & izinkan browser.', 'err');
-    } else if (error.name === 'NotSupportedError') {
-      setNfcStatus('NFC tidak didukung di perangkat ini.', 'err');
-    } else if (error.name === 'NotReadableError') {
-      setNfcStatus('NFC tidak bisa dibaca. Pastikan NFC HP aktif.', 'err');
-    } else {
-      setNfcStatus('Error NFC: ' + error.message, 'err');
+  function vibrate(pattern) {
+    if (settings.vibrate && navigator.vibrate) {
+      try { navigator.vibrate(pattern); } catch {}
     }
   }
-
-  async function startNfc() {
-    if (nfcScanning) return;
-    try {
-      nfcController = new NDEFReader();
-      await nfcController.scan();
-      nfcScanning = true;
-      nfcBtn.textContent = 'Scanning... (tempel kartu)';
-      nfcBtn.disabled = false;
-      nfcBtn.onclick = stopNfc;
-      setNfcStatus('Mendengarkan... Tempel kartu NFC ke belakang HP.', 'ok');
-
-      nfcController.onreading = handleNdefReading;
-      nfcController.onreadingerror = () => {
-        setNfcStatus('Gagal membaca. Coba tempel ulang kartu.', 'warn');
-      };
-    } catch (err) {
-      handleNdefError(err);
-      nfcBtn.textContent = 'Mulai Scan NFC';
-      nfcScanning = false;
-      nfcBtn.onclick = startNfc;
-    }
+  function flashScreen() {
+    if (!settings.flash) return;
+    const el = $('flash-overlay');
+    el.classList.add('on');
+    setTimeout(() => el.classList.remove('on'), 250);
   }
 
-  function stopNfc() {
-    // Web NFC tidak punya metode stop eksplisit; buat instance baru untuk "berhenti"
-    if (nfcController) {
-      nfcController.onreading = null;
-      nfcController.onreadingerror = null;
-      nfcController = null;
+  // ==================== AUDIO (Web Audio API) ====================
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
     }
-    nfcScanning = false;
-    nfcBtn.textContent = 'Mulai Scan NFC';
-    nfcBtn.onclick = startNfc;
-    setNfcStatus('Scan NFC dihentikan.', '');
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  function playTone(freq, dur = 0.15, type = 'sine', vol = 0.15) {
+    if (!settings.sound) return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + dur);
+  }
+  function playChord(freqs, dur = 0.25, type = 'sine') {
+    freqs.forEach(f => playTone(f, dur, type, 0.1));
   }
 
-  nfcBtn.onclick = startNfc;
-
-  // ============ QR ============
-  const qrBtn = $('qr-btn');
-  const qrStopBtn = $('qr-stop-btn');
-  const qrReader = $('qr-reader');
-  const qrStatus = $('qr-status');
-  const qrResult = $('qr-result');
+  // ==================== CONFETTI ====================
+  const confettiCanvas = $('confetti');
+  const cctx = confettiCanvas.getContext('2d');
+  let confettiParticles = [];
+  let confettiRAF = null;
+  function resizeCanvas() {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+  window.addEventLesult = $('qr-result');
 
   let qrScanner = null;
 
