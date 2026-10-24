@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>NFC & QR Reader</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      padding-bottom: 40px;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 1rem; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: opacity 0.2s;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary { background: #21262d; border: 1px solid var(--border); color: var(--text); }
+    .status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      word-break: break-word;
+    }
+    .status.ok { color: var(--green); border-color: #238636; }
+    .status.err { color: var(--red); border-color: #da3633; }
+    .status.warn { color: var(--yellow); border-color: #9e6a03; }
+    .result {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 12px;
+      display: none;
+    }
+    .result.show { display: block; }
+    .result .label { color: var(--accent); }
+    #qr-reader {
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 12px;
+      display: none;
+      border: 1px solid var(--border);
+    }
+    #qr-reader.show { display: block; }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #21262d;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .row { display: flex; gap: 8px; }
+    .row button { flex: 1; }
+  </style>
+</head>
+<body>
+
+  <h1>📡 NFC & QR Reader</h1>
+  <p class="sub">Tempel kartu NFC ke HP, atau scan QR kalau NFC tidak berfungsi.</p>
+
+  <!-- NFC CARD -->
+  <div class="card">
+    <h2>🔲 NFC <span class="badge" id="nfc-support">Cek...</span></h2>
+    <button id="nfc-btn" disabled>Mulai Scan NFC</button>
+    <div class="status" id="nfc-status">Menunggu inisialisasi...</div>
+    <div class="result" id="nfc-result"></div>
+  </div>
+
+  <!-- QR CARD -->
+  <div class="card">
+    <h2>🔳 QR Code <span class="badge">Cadangan</span></h2>
+    <div class="row">
+      <button id="qr-btn" class="secondary">Mulai Kamera</button>
+      <button id="qr-stop-btn" class="secondary" style="display:none">Stop</button>
+    </div>
+    <div id="qr-reader"></div>
+    <div class="status" id="qr-status">Kamera belum aktif.</div>
+    <div class="result" id="qr-result"></div>
+  </div>
+
+<script>
+(function () {
+  // ============ UTIL ============
+  const $ = (id) => document.getElementById(id);
+
+  function showResult(el, content) {
+    el.classList.add('show');
+    el.innerHTML = content;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    return bytes.length + ' byte';
+  }
+
+  // ============ NFC ============
+  const nfcBtn = $('nfc-btn');
+  const nfcStatus = $('nfc-status');
+  const nfcResult = $('nfc-result');
+  const nfcSupport = $('nfc-support');
+
+  let nfcController = null;
+  let nfcScanning = false;
+
+  function setNfcStatus(msg, cls) {
+    nfcStatus.textContent = msg;
+    nfcStatus.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  // Cek dukungan
+  if (!('NDEFReader' in window)) {
+    nfcSupport.textContent = 'Tidak didukung';
+    nfcSupport.style.color = 'var(--red)';
+    setNfcStatus('Browser ini tidak mendukung Web NFC. Gunakan Chrome di Android via HTTPS/localhost. Pakai QR sebagai cadangan.', 'err');
+    nfcBtn.disabled = true;
+  } else if (!window.isSecureContext) {
+    nfcSupport.textContent = 'Butuh HTTPS';
+    nfcSupport.style.color = 'var(--yellow)';
+    setNfcStatus('Web NFC hanya jalan di HTTPS atau localhost. Buka halaman ini via server HTTPS. Pakai QR sebagai cadangan.', 'warn');
+    nfcBtn.disabled = true;
+  } else {
+    nfcSupport.textContent = 'Siap';
+    nfcSupport.style.color = 'var(--green)';
+    setNfcStatus('NFC siap. Tekan tombol untuk mulai memindai.', 'ok');
+    nfcBtn.disabled = false;
+  }
+
+  function renderNfcRecord(record) {
+    let html = '';
+    try {
+      // record.recordType: 'text' | 'url' | 'absolute-url' | 'mime' | 'smart-poster' | 'empty' | 'unknown'
+      const type = record.recordType || 'unknown';
+      html += `<span class="label">Tipe:</span> ${escapeHtml(type)}\n`;
+
+      if (record.mediaType) {
+        html += `<span class="label">Media:</span> ${escapeHtml(record.mediaType)}\n`;
+      }
+
+      // Data text
+      if (record.data) {
+        if (type === 'text' && record.encoding) {
+          const decoder = new TextDecoder(record.encoding);
+          const text = decoder.decode(record.data);
+          html += `<span class="label">Teks:</span> ${escapeHtml(text)}\n`;
+        } else if (type === 'url' || type === 'absolute-url') {
+          const decoder = new TextDecoder();
+          const url = decoder.decode(record.data);
+          html += `<span class="label">URL:</span> ${escapeHtml(url)}\n`;
+        } else if (record.mediaType && record.mediaType.startsWith('text/')) {
+          const decoder = new TextDecoder();
+          html += `<span class="label">Data:</span> ${escapeHtml(decoder.decode(record.data))}\n`;
+        } else {
+          // Tampilkan hex ringkas
+          const bytes = new Uint8Array(record.data);
+          let hex = '';
+          const max = Math.min(bytes.length, 64);
+          for (let i = 0; i < max; i++) {
+            hex += bytes[i].toString(16).padStart(2, '0') + ' ';
+          }
+          if (bytes.length > max) hex += '...';
+          html += `<span class="label">Data (hex):</span> ${escapeHtml(hex)}\n`;
+          html += `<span class="label">Ukuran:</span> ${formatBytes(record.data)}\n`;
+        }
+      }
+    } catch (e) {
+      html += `<span class="label">Error baca record:</span> ${escapeHtml(e.message)}\n`;
+    }
+    return html;
+  }
+
+  function handleNdefReading(event) {
+    const { message, serialNumber } = event;
+    const time = new Date().toLocaleTimeString();
+
+    let html = `<span class="label">⏱ Waktu:</span> ${time}\n`;
+    html += `<span class="label">🔑 Serial:</span> ${escapeHtml(serialNumber || '-')}\n`;
+    html += `<span class="label">📦 Jumlah record:</span> ${message.records.length}\n\n`;
+
+    message.records.forEach((record, i) => {
+      html += `--- Record ${i + 1} ---\n`;
+      html += renderNfcRecord(record);
+      html += '\n';
+    });
+
+    showResult(nfcResult, html);
+    setNfcStatus('Kartu terbaca! Data ditampilkan di bawah.', 'ok');
+
+    // getar kalau didukung
+    if (navigator.vibrate) navigator.vibrate(80);
+  }
+
+  function handleNdefError(error) {
+    console.error(error);
+    if (error.name === 'NotAllowedError') {
+      setNfcStatus('Izin NFC ditolak. Aktifkan NFC & izinkan browser.', 'err');
+    } else if (error.name === 'NotSupportedError') {
+      setNfcStatus('NFC tidak didukung di perangkat ini.', 'err');
+    } else if (error.name === 'NotReadableError') {
+      setNfcStatus('NFC tidak bisa dibaca. Pastikan NFC HP aktif.', 'err');
+    } else {
+      setNfcStatus('Error NFC: ' + error.message, 'err');
+    }
+  }
+
+  async function startNfc() {
+    if (nfcScanning) return;
+    try {
+      nfcController = new NDEFReader();
+      await nfcController.scan();
+      nfcScanning = true;
+      nfcBtn.textContent = 'Scanning... (tempel kartu)';
+      nfcBtn.disabled = false;
+      nfcBtn.onclick = stopNfc;
+      setNfcStatus('Mendengarkan... Tempel kartu NFC ke belakang HP.', 'ok');
+
+      nfcController.onreading = handleNdefReading;
+      nfcController.onreadingerror = () => {
+        setNfcStatus('Gagal membaca. Coba tempel ulang kartu.', 'warn');
+      };
+    } catch (err) {
+      handleNdefError(err);
+      nfcBtn.textContent = 'Mulai Scan NFC';
+      nfcScanning = false;
+      nfcBtn.onclick = startNfc;
+    }
+  }
+
+  function stopNfc() {
+    // Web NFC tidak punya metode stop eksplisit; buat instance baru untuk "berhenti"
+    if (nfcController) {
+      nfcController.onreading = null;
+      nfcController.onreadingerror = null;
+      nfcController = null;
+    }
+    nfcScanning = false;
+    nfcBtn.textContent = 'Mulai Scan NFC';
+    nfcBtn.onclick = startNfc;
+    setNfcStatus('Scan NFC dihentikan.', '');
+  }
+
+  nfcBtn.onclick = startNfc;
+
+  // ============ QR ============
+  const qrBtn = $('qr-btn');
+  const qrStopBtn = $('qr-stop-btn');
+  const qrReader = $('qr-reader');
+  const qrStatus = $('qr-status');
+  const qrResult = $('qr-result');
+
+  let qrScanner = null;
+
+  function setQrStatus(msg, cls) {
+    qrStatus.textContent = msg;
+    qrStatus.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  async function startQr() {
+    qrBtn.disabled = true;
+    qrReader.classList.add('show');
+
+    if (!qrScanner) {
+      qrScanner = new Html5Qrcode('qr-reader');
+    }
+
+    try {
+      await qrScanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText, decodedResult) => {
+          const html =
+            `<span class="label">⏱ Waktu:</span> ${new Date().toLocaleTimeString()}\n` +
+            `<span class="label">📝 Isi QR:</span>\n${escapeHtml(decodedText)}\n`;
+          showResult(qrResult, html);
+          setQrStatus('QR berhasil dibaca!', 'ok');
+          if (navigator.vibrate) navigator.vibrate(80);
+          // Hentikan scan setelah berhasil
+          stopQr();
+        },
+        (errorMsg) => {
+          // Abaikan error frame (normal)
+        }
+      );
+      setQrStatus('Kamera aktif. Arahkan ke QR code.', 'ok');
+      qrStopBtn.style.display = 'block';
+    } catch (err) {
+      console.error(err);
+      setQrStatus('Gagal akses kamera: ' + err.message, 'err');
+      qrBtn.disabled = false;
+      qrReader.classList.remove('show');
+    }
+  }
+
+  async function stopQr() {
+    if (qrScanner) {
+      try {
+        await qrScanner.stop();
+      } catch (e) {}
+    }
+    qrReader.classList.remove('show');
+    qrStopBtn.style.display = 'none';
+    qrBtn.disabled = false;
+    setQrStatus('Kamera nonaktif. Tekan "Mulai Kamera" untuk scan lagi.', '');
+  }
+
+  qrBtn.onclick = startQr;
+  qrStopBtn.onclick = stopQr;
+
+  // Bersihkan kamera saat halaman ditutup
+  window.addEventListener('beforeunload', () => {
+    if (qrScanner) {
+      try { qrScanner.stop(); } catch (e) {}
+    }
+  });
+})();
+</script>
+</body>
+      </html>
